@@ -5,7 +5,7 @@ import {
   Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList,
   Phone, User, MapPin, ArrowLeft, LayoutGrid, Wallet,
   Users, Trophy, BadgePercent, Ruler, Layers,
-  ChevronLeft, ChevronRight, Lock,
+  ChevronLeft, ChevronRight, Lock, Search,
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { resizeImage } from './lib/resizeImage';
@@ -92,6 +92,20 @@ function totalDiscountPct(product, tierIdx, regionDiscount = 0) {
 }
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
+}
+// 카카오/다음 우편번호 검색 팝업 — 별도 API 키 없이 사용 가능
+function openAddressSearch(onComplete) {
+  function open() {
+    new window.daum.Postcode({ oncomplete: onComplete }).open();
+  }
+  if (window.daum?.Postcode) {
+    open();
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+  script.onload = open;
+  document.head.appendChild(script);
 }
 function dDayLabel(days) {
   if (days == null) return '';
@@ -790,6 +804,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
   const [step, setStep] = useState('date'); // 'date' | 'address' | 'shop'
   const [moveInDate, setMoveInDate] = useState('');
   const [address, setAddress] = useState('');
+  const [addressDetail, setAddressDetail] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
   const [detailId, setDetailId] = useState(null);
@@ -800,6 +815,14 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
   const wk = weekKey(moveInDate);
   const regionCount = regionCountForWeek(reservations, wk);
   const regionDiscount = regionDiscountForCount(regionThresholds, regionCount);
+  const fullAddress = address ? `${address}${addressDetail.trim() ? ' ' + addressDetail.trim() : ''}` : '';
+
+  function handleSearchAddress() {
+    openAddressSearch((data) => {
+      setAddress(data.roadAddress || data.jibunAddress || data.address);
+      setAddressDetail('');
+    });
+  }
 
   function toggleCategory(catId) {
     setChecked((c) => ({ ...c, [catId]: !c[catId] }));
@@ -906,17 +929,31 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
             <label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: 'var(--ink)' }}>
               <MapPin size={13} /> 배송 받을 주소
             </label>
-            <textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="예: 서울시 ○○구 ○○로 12, ○○빌라 101동 502호"
-              rows={3}
-              className="w-full border px-3 py-2 text-sm resize-none"
-              style={{ borderColor: 'var(--line)' }}
-            />
-            <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              상세 주소까지 입력해주시면 예약할 때 다시 입력하지 않아도 돼요.
-            </p>
+            {address ? (
+              <div className="border px-3 py-2 mb-2 flex items-center justify-between gap-2" style={{ borderColor: 'var(--line)' }}>
+                <span className="text-sm" style={{ color: 'var(--ink)' }}>{address}</span>
+                <button onClick={handleSearchAddress} className="flex-shrink-0 text-[11px] font-bold underline" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+                  변경
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSearchAddress}
+                className="w-full flex items-center justify-center gap-1.5 border-2 py-3 font-bold text-sm"
+                style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+              >
+                <Search size={15} /> 주소 검색
+              </button>
+            )}
+            {address && (
+              <input
+                value={addressDetail}
+                onChange={(e) => setAddressDetail(e.target.value)}
+                placeholder="동/호수 등 상세주소 (예: 101동 502호)"
+                className="w-full border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--line)' }}
+              />
+            )}
           </div>
           <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
           <div className="flex gap-2">
@@ -929,7 +966,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
             </button>
             <button
               onClick={() => setStep('shop')}
-              disabled={!address.trim()}
+              disabled={!address}
               className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
               style={{ background: 'var(--ink)', color: '#fff' }}
             >
@@ -946,7 +983,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
           <Calendar size={12} /> {moveInDate} 변경
         </button>
         <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
-          <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{address}</span>
+          <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{fullAddress}</span>
         </button>
       </div>
 
@@ -1010,7 +1047,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         savings={savings}
         moveInDate={moveInDate}
         tierIdx={tierIdx}
-        initialAddress={address}
+        initialAddress={fullAddress}
         onSubmit={handleSubmitReservation}
       />
         </>

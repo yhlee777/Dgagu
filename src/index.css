@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;700;900&family=Noto+Serif+KR:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.idn-display { font-family: 'Noto Serif KR', serif; }
+.idn-mono { font-family: 'Space Mono', monospace; }
+.idn-root { font-family: 'Gothic A1', sans-serif; }
+.idn-root input, .idn-root select, .idn-root textarea, .idn-root button { font-family: inherit; }
+.idn-seal {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  border-radius: 9999px; border: 2px solid var(--stamp); color: var(--stamp);
+  background: var(--surface); font-family: 'Noto Serif KR', serif; font-weight: 900;
+  line-height: 1; text-align: center; transform: rotate(-10deg);
+}
+.idn-seal-gold { border-color: var(--gold); color: var(--gold); }
+.idn-hatch {
+  background-image: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--bg) 6px 12px);
+}
+.idn-noscroll::-webkit-scrollbar { display: none; }
+.idn-noscroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+html, body, #root { height: 100%; }

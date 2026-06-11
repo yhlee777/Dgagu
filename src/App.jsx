@@ -690,7 +690,7 @@ function CartBar({ cartEntries, subtotal, total, savings, hasDate, onReserve }) 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, tierIdx, initialAddress = '', onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, tierIdx, regionDiscount = 0, regionLabel, initialAddress = '', onSubmit }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -701,6 +701,13 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   if (!open) return null;
 
   const canSubmit = name.trim() && phone.trim() && address.trim();
+
+  // 기간할인 vs 입주모임 할인 절약 금액 분리 (priceFor가 가산식이라 정확히 분리됨)
+  const timeSavings = cartEntries.reduce((s, e) => {
+    const timeOnlyPrice = priceFor(e.product, tierIdx, 0);
+    return s + (e.product.basePrice - timeOnlyPrice) * e.qty;
+  }, 0);
+  const regionSavings = Math.max(0, savings - timeSavings);
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -738,8 +745,30 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 </div>
               </div>
               {savings > 0 && (
-                <div className="text-[11px] idn-mono text-right mb-3" style={{ color: 'var(--stamp)' }}>
-                  정가보다 −{won(savings)} 절약
+                <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
+                  <div className="px-2.5 py-1.5 font-bold border-b" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.55 }}>
+                    할인 내역
+                  </div>
+                  {timeSavings > 0 && (
+                    <div className="flex justify-between px-2.5 py-1.5">
+                      <span style={{ color: 'var(--ink)', opacity: 0.7 }}>
+                        기간 할인 ({TIERS[tierIdx]?.label} · {TIERS[tierIdx]?.sub})
+                      </span>
+                      <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(timeSavings)}</span>
+                    </div>
+                  )}
+                  {regionSavings > 0 && (
+                    <div className="flex justify-between px-2.5 py-1.5 border-t" style={{ borderColor: 'var(--line)' }}>
+                      <span style={{ color: 'var(--ink)', opacity: 0.7 }}>
+                        {regionLabel || '우리 동네'} 입주모임 할인 (−{regionDiscount}%)
+                      </span>
+                      <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(regionSavings)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between px-2.5 py-1.5 border-t font-bold" style={{ borderColor: 'var(--line)', color: 'var(--stamp)' }}>
+                    <span>총 절약</span>
+                    <span className="idn-mono">−{won(savings)}</span>
+                  </div>
                 </div>
               )}
 
@@ -955,7 +984,6 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
               />
             )}
           </div>
-          <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
           <div className="flex gap-2">
             <button
               onClick={() => setStep('date')}
@@ -1047,6 +1075,8 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         savings={savings}
         moveInDate={moveInDate}
         tierIdx={tierIdx}
+        regionDiscount={regionDiscount}
+        regionLabel={regionLabel}
         initialAddress={fullAddress}
         onSubmit={handleSubmitReservation}
       />

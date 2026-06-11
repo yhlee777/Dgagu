@@ -676,11 +676,13 @@ function CartBar({ cartEntries, subtotal, total, savings, hasDate, onReserve }) 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, tierIdx, onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, tierIdx, initialAddress = '', onSubmit }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(initialAddress);
   const [done, setDone] = useState(false);
+
+  useEffect(() => { setAddress(initialAddress); }, [initialAddress]);
 
   if (!open) return null;
 
@@ -692,7 +694,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     setDone(true);
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(''); setDone(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); onClose();
   }
 
   return (
@@ -785,7 +787,9 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 /* ---------------------------------------------------------------------- */
 
 function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, reservations, onAddReservation }) {
+  const [step, setStep] = useState('date'); // 'date' | 'address' | 'shop'
   const [moveInDate, setMoveInDate] = useState('');
+  const [address, setAddress] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
   const [detailId, setDetailId] = useState(null);
@@ -851,9 +855,102 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
 
   return (
     <div className="pb-32">
-      <div className="px-4 pt-4 space-y-3">
-        <MoveInCalendar value={moveInDate} onChange={setMoveInDate} globalDiscounts={globalDiscounts} />
-        <TierGauge days={days} tierIdx={tierIdx} globalDiscounts={globalDiscounts} />
+      <div className="px-4 pt-3 flex items-center justify-center gap-1.5">
+        {[
+          { id: 'date', label: '입주일' },
+          { id: 'address', label: '배송지' },
+          { id: 'shop', label: '가구선택' },
+        ].map((s, i) => {
+          const order = { date: 0, address: 1, shop: 2 };
+          const active = order[step] === i;
+          const done = order[step] > i;
+          return (
+            <div key={s.id} className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
+                <span
+                  className="w-4 h-4 flex items-center justify-center text-[10px] font-bold idn-mono"
+                  style={{
+                    background: active || done ? 'var(--ink)' : 'transparent',
+                    color: active || done ? '#fff' : 'var(--ink)',
+                    border: active || done ? 'none' : '1px solid var(--line)',
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <span className="text-[11px] font-bold" style={{ color: 'var(--ink)', opacity: active ? 1 : 0.4 }}>{s.label}</span>
+              </div>
+              {i < 2 && <span style={{ color: 'var(--ink)', opacity: 0.2 }}>—</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {step === 'date' && (
+        <div className="px-4 pt-3 space-y-3">
+          <MoveInCalendar value={moveInDate} onChange={setMoveInDate} globalDiscounts={globalDiscounts} />
+          <TierGauge days={days} tierIdx={tierIdx} globalDiscounts={globalDiscounts} />
+          <button
+            onClick={() => setStep('address')}
+            disabled={!moveInDate}
+            className="w-full py-3 font-bold text-sm disabled:opacity-30"
+            style={{ background: 'var(--ink)', color: '#fff' }}
+          >
+            다음 — 배송지 입력
+          </button>
+        </div>
+      )}
+
+      {step === 'address' && (
+        <div className="px-4 pt-3 space-y-3">
+          <div className="border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+            <label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: 'var(--ink)' }}>
+              <MapPin size={13} /> 배송 받을 주소
+            </label>
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="예: 서울시 ○○구 ○○로 12, ○○빌라 101동 502호"
+              rows={3}
+              className="w-full border px-3 py-2 text-sm resize-none"
+              style={{ borderColor: 'var(--line)' }}
+            />
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              상세 주소까지 입력해주시면 예약할 때 다시 입력하지 않아도 돼요.
+            </p>
+          </div>
+          <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep('date')}
+              className="flex-shrink-0 px-4 py-3 font-bold text-sm border-2"
+              style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+            >
+              이전
+            </button>
+            <button
+              onClick={() => setStep('shop')}
+              disabled={!address.trim()}
+              className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
+              style={{ background: 'var(--ink)', color: '#fff' }}
+            >
+              다음 — 가구 선택
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'shop' && (
+        <>
+      <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
+        <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
+          <Calendar size={12} /> {moveInDate} 변경
+        </button>
+        <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
+          <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{address}</span>
+        </button>
+      </div>
+
+      <div className="px-4 mt-3">
         <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
       </div>
 
@@ -913,8 +1010,11 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         savings={savings}
         moveInDate={moveInDate}
         tierIdx={tierIdx}
+        initialAddress={address}
         onSubmit={handleSubmitReservation}
       />
+        </>
+      )}
     </div>
   );
 }

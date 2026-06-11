@@ -63,9 +63,32 @@ function daysUntil(dateStr) {
   const target = new Date(`${dateStr}T00:00:00`);
   return Math.round((target - today) / 86400000);
 }
-function priceFor(product, tierIdx) {
-  const disc = tierIdx == null ? 0 : product.discounts[tierIdx] || 0;
-  return Math.round(product.basePrice * (1 - disc / 100));
+// 'YYYY-MM-DD' -> 그 주 월요일의 'YYYY-MM-DD' (입주 주간 묶음 키)
+function weekKey(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr}T00:00:00`);
+  const day = d.getDay(); // 0=일 ... 6=토
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function regionCountForWeek(reservations, wk) {
+  if (!wk) return 0;
+  return reservations.filter((r) => r.moveInDate && weekKey(r.moveInDate) === wk).length;
+}
+function regionDiscountForCount(thresholds, count) {
+  let disc = 0;
+  for (const t of thresholds || []) if (count >= t.count) disc = Math.max(disc, t.discount);
+  return disc;
+}
+function priceFor(product, tierIdx, regionDiscount = 0) {
+  const timeDisc = tierIdx == null ? 0 : product.discounts[tierIdx] || 0;
+  const totalDisc = Math.min(timeDisc + regionDiscount, 90);
+  return Math.round(product.basePrice * (1 - totalDisc / 100));
+}
+function totalDiscountPct(product, tierIdx, regionDiscount = 0) {
+  const timeDisc = tierIdx == null ? 0 : product.discounts[tierIdx] || 0;
+  return Math.min(timeDisc + regionDiscount, 90);
 }
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
@@ -144,6 +167,67 @@ function TierGauge({ days, tierIdx, globalDiscounts }) {
         <div className="text-[10px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
           ※ 입주 예정일에 따라 할인이 자동으로 적용돼요
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* region group-buy gauge — 같은 입주 주간에 모인 인원만큼 추가 할인        */
+/* ---------------------------------------------------------------------- */
+
+function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
+  const sorted = [...(thresholds || [])].sort((a, b) => a.count - b.count);
+  const achieved = regionDiscountForCount(sorted, count);
+  const next = sorted.find((t) => count < t.count);
+  const maxCount = sorted.length ? sorted[sorted.length - 1].count : 1;
+  const pct = next ? Math.min(100, (count / next.count) * 100) : 100;
+
+  let weekLabel = '';
+  if (weekKeyVal) {
+    const start = new Date(`${weekKeyVal}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+    weekLabel = `${fmt(start)}~${fmt(end)}`;
+  }
+
+  return (
+    <div className="border" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="flex items-center gap-1.5">
+          <Users size={14} style={{ color: 'var(--ink)' }} />
+          <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{label || '우리 동네'} 입주 모임</span>
+        </div>
+        <span className="idn-mono text-xs font-bold" style={{ color: achieved > 0 ? 'var(--stamp)' : 'var(--ink)', opacity: achieved > 0 ? 1 : 0.4 }}>
+          {achieved > 0 ? `−${achieved}% 적용중` : '추가할인 없음'}
+        </span>
+      </div>
+      <div className="px-3 py-2.5">
+        {!moveInDate ? (
+          <div className="text-[11px] text-center py-1" style={{ color: 'var(--ink)', opacity: 0.45 }}>
+            입주일을 정하면 같은 주간에 모인 이웃 수를 확인할 수 있어요
+          </div>
+        ) : (
+          <>
+            <div className="h-2 w-full overflow-hidden" style={{ background: 'var(--bg)' }}>
+              <div className="h-2" style={{ width: `${pct}%`, background: 'var(--gold)' }} />
+            </div>
+            <div className="text-[11px] mt-1.5 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+              {weekLabel} 입주 주간 · 지금까지 <b style={{ color: 'var(--ink)', opacity: 1 }}>{count}명</b> 모였어요
+              {next
+                ? <> · {next.count - count}명 더 모이면 −{next.discount}% 추가</>
+                : <> · 이번 주간 최대 할인 달성!</>}
+            </div>
+            {sorted.length > 0 && (
+              <div className="flex justify-between idn-mono text-[9px] mt-1" style={{ color: 'var(--ink)', opacity: 0.35 }}>
+                {sorted.map((t) => (
+                  <span key={t.count}>{t.count}명 −{t.discount}%</span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -249,10 +333,11 @@ function MoveInCalendar({ value, onChange, globalDiscounts }) {
 }
 /* ---------------------------------------------------------------------- */
 
-function ProductCard({ product, tierIdx, qtyInCart, onClick }) {
+function ProductCard({ product, tierIdx, regionDiscount = 0, qtyInCart, onClick }) {
   const Icon = CAT_BY_ID[product.category].icon;
-  const price = priceFor(product, tierIdx);
-  const hasDiscount = tierIdx != null && product.discounts[tierIdx] > 0;
+  const price = priceFor(product, tierIdx, regionDiscount);
+  const discPct = totalDiscountPct(product, tierIdx, regionDiscount);
+  const hasDiscount = discPct > 0;
   return (
     <button
       onClick={onClick}
@@ -290,7 +375,7 @@ function ProductCard({ product, tierIdx, qtyInCart, onClick }) {
                 <div className="idn-mono text-[10px] line-through truncate" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(product.basePrice)}</div>
                 <div className="idn-display text-lg font-bold leading-none" style={{ color: 'var(--ink)' }}>{won(price)}</div>
               </div>
-              <span className="idn-seal w-10 h-10 text-[10px]">−{product.discounts[tierIdx]}%</span>
+              <span className="idn-seal w-10 h-10 text-[10px]">−{discPct}%</span>
             </div>
           ) : (
             <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</div>
@@ -301,7 +386,7 @@ function ProductCard({ product, tierIdx, qtyInCart, onClick }) {
   );
 }
 
-function CategorySection({ category, products, tierIdx, cart, onCardClick }) {
+function CategorySection({ category, products, tierIdx, regionDiscount = 0, cart, onCardClick }) {
   const Icon = category.icon;
   const items = products.filter((p) => p.category === category.id);
   return (
@@ -324,6 +409,7 @@ function CategorySection({ category, products, tierIdx, cart, onCardClick }) {
               key={p.id}
               product={p}
               tierIdx={tierIdx}
+              regionDiscount={regionDiscount}
               qtyInCart={cart[p.id] || 0}
               onClick={() => onCardClick(p.id)}
             />
@@ -353,14 +439,15 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, tierIdx, qtyInCart, cart, reservations, onUpdateCart, onBack, onSelectProduct }) {
+function ProductPage({ product, allProducts, tierIdx, regionDiscount = 0, qtyInCart, cart, reservations, onUpdateCart, onBack, onSelectProduct }) {
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(0);
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
   const Icon = CAT_BY_ID[product.category].icon;
-  const price = priceFor(product, tierIdx);
-  const hasDiscount = tierIdx != null && product.discounts[tierIdx] > 0;
+  const price = priceFor(product, tierIdx, regionDiscount);
+  const discPct = totalDiscountPct(product, tierIdx, regionDiscount);
+  const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
   const related = allProducts.filter((p) => p.category === product.category && p.id !== product.id);
   const bought = purchaseCount(reservations, product.id);
@@ -491,7 +578,7 @@ function ProductPage({ product, allProducts, tierIdx, qtyInCart, cart, reservati
             <div className="flex items-center gap-2 px-3 py-2.5">
               {hasDiscount && <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.4 }}>{won(product.basePrice)}</span>}
               <span className="idn-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</span>
-              {hasDiscount && <span className="idn-seal w-9 h-9 text-[10px] ml-auto">−{product.discounts[tierIdx]}%</span>}
+              {hasDiscount && <span className="idn-seal w-9 h-9 text-[10px] ml-auto">−{discPct}%</span>}
             </div>
             <div className="text-[11px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
               {tierIdx == null ? '입주일을 정하면 할인가가 적용돼요' : '입주일을 늦추면 할인율이 더 커져요'}
@@ -511,6 +598,7 @@ function ProductPage({ product, allProducts, tierIdx, qtyInCart, cart, reservati
                 key={p.id}
                 product={p}
                 tierIdx={tierIdx}
+                regionDiscount={regionDiscount}
                 qtyInCart={cart[p.id] || 0}
                 onClick={() => onSelectProduct(p.id)}
               />
@@ -696,7 +784,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 /* shop view                                                               */
 /* ---------------------------------------------------------------------- */
 
-function ShopView({ products, globalDiscounts, reservations, onAddReservation }) {
+function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, reservations, onAddReservation }) {
   const [moveInDate, setMoveInDate] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
@@ -705,6 +793,9 @@ function ShopView({ products, globalDiscounts, reservations, onAddReservation })
 
   const days = daysUntil(moveInDate);
   const tierIdx = tierIndexFromDays(days);
+  const wk = weekKey(moveInDate);
+  const regionCount = regionCountForWeek(reservations, wk);
+  const regionDiscount = regionDiscountForCount(regionThresholds, regionCount);
 
   function toggleCategory(catId) {
     setChecked((c) => ({ ...c, [catId]: !c[catId] }));
@@ -720,7 +811,7 @@ function ShopView({ products, globalDiscounts, reservations, onAddReservation })
 
   const cartEntries = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((p) => p.id === id);
-    const unitPrice = priceFor(product, tierIdx);
+    const unitPrice = priceFor(product, tierIdx, regionDiscount);
     return { product, qty, unitPrice, lineBase: product.basePrice * qty, lineTotal: unitPrice * qty };
   });
   const subtotal = cartEntries.reduce((s, e) => s + e.lineBase, 0);
@@ -747,6 +838,7 @@ function ShopView({ products, globalDiscounts, reservations, onAddReservation })
         product={detailProduct}
         allProducts={products}
         tierIdx={tierIdx}
+        regionDiscount={regionDiscount}
         qtyInCart={cart[detailProduct.id] || 0}
         cart={cart}
         reservations={reservations}
@@ -762,6 +854,7 @@ function ShopView({ products, globalDiscounts, reservations, onAddReservation })
       <div className="px-4 pt-4 space-y-3">
         <MoveInCalendar value={moveInDate} onChange={setMoveInDate} globalDiscounts={globalDiscounts} />
         <TierGauge days={days} tierIdx={tierIdx} globalDiscounts={globalDiscounts} />
+        <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
       </div>
 
       <div className="px-4 mt-5">
@@ -798,6 +891,7 @@ function ShopView({ products, globalDiscounts, reservations, onAddReservation })
             category={c}
             products={products}
             tierIdx={tierIdx}
+            regionDiscount={regionDiscount}
             cart={cart}
             onCardClick={(pid) => setDetailId(pid)}
           />
@@ -1195,34 +1289,87 @@ function AdminProducts({ products, setProducts, globalDiscounts }) {
   );
 }
 
-function AdminSettings({ globalDiscounts, setGlobalDiscounts }) {
+function AdminSettings({ globalDiscounts, setGlobalDiscounts, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
+  function updateThreshold(i, field, value) {
+    setRegionThresholds((ts) => ts.map((t, idx) => (idx === i ? { ...t, [field]: Number(value) || 0 } : t)));
+  }
   return (
-    <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-      <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>기본 할인율 설정</h3>
-      <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-        새 상품을 등록할 때 기본으로 적용돼요. 이미 등록된 상품에는 영향을 주지 않아요.
-      </p>
-      <div className="grid grid-cols-4 gap-2">
-        {TIERS.map((t, i) => (
-          <div key={t.label} className="border px-2 py-2 text-center" style={{ borderColor: 'var(--line)' }}>
-            <div className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>{t.label}</div>
-            <div className="text-[10px] idn-mono mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.sub}</div>
-            {i === 0 ? (
-              <div className="idn-mono text-base font-bold" style={{ color: 'var(--ink)' }}>0%</div>
-            ) : (
+    <div className="space-y-3">
+      <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>기본 할인율 설정</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          새 상품을 등록할 때 기본으로 적용돼요. 이미 등록된 상품에는 영향을 주지 않아요.
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {TIERS.map((t, i) => (
+            <div key={t.label} className="border px-2 py-2 text-center" style={{ borderColor: 'var(--line)' }}>
+              <div className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>{t.label}</div>
+              <div className="text-[10px] idn-mono mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.sub}</div>
+              {i === 0 ? (
+                <div className="idn-mono text-base font-bold" style={{ color: 'var(--ink)' }}>0%</div>
+              ) : (
+                <input
+                  type="number" min="0" max="90"
+                  value={globalDiscounts[i]}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setGlobalDiscounts((g) => g.map((x, idx) => (idx === i ? v : x)));
+                  }}
+                  className="w-full text-center idn-mono text-base font-bold bg-transparent"
+                  style={{ color: 'var(--ink)' }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>지역 모임 할인 설정</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          같은 입주 주간(월~일)에 예약이 일정 인원 모이면, 그 주간 전체 예약자에게 추가 할인이 적용돼요.
+          시간 할인과 더해져요(최대 90%).
+        </p>
+        <label className="block text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>지역 이름</label>
+        <input
+          value={regionLabel}
+          onChange={(e) => setRegionLabel(e.target.value)}
+          placeholder="예: 강남대 후문"
+          className="w-full border px-3 py-2 text-sm mb-3" style={{ borderColor: 'var(--line)' }}
+        />
+        <label className="block text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>구간 (인원 → 추가 할인%)</label>
+        <div className="space-y-1.5">
+          {regionThresholds.map((t, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="number" min="1"
+                value={t.count}
+                onChange={(e) => updateThreshold(i, 'count', e.target.value)}
+                className="flex-1 border px-2 py-1.5 text-sm idn-mono text-center" style={{ borderColor: 'var(--line)' }}
+              />
+              <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.5 }}>명 →</span>
               <input
                 type="number" min="0" max="90"
-                value={globalDiscounts[i]}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setGlobalDiscounts((g) => g.map((x, idx) => (idx === i ? v : x)));
-                }}
-                className="w-full text-center idn-mono text-base font-bold bg-transparent"
-                style={{ color: 'var(--ink)' }}
+                value={t.discount}
+                onChange={(e) => updateThreshold(i, 'discount', e.target.value)}
+                className="flex-1 border px-2 py-1.5 text-sm idn-mono text-center" style={{ borderColor: 'var(--line)' }}
               />
-            )}
-          </div>
-        ))}
+              <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.5 }}>% 추가</span>
+              <button
+                onClick={() => setRegionThresholds((ts) => ts.filter((_, idx) => idx !== i))}
+                className="px-2 py-1.5 text-xs font-bold border" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}
+              >
+                삭제
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => setRegionThresholds((ts) => [...ts, { count: (ts[ts.length - 1]?.count || 0) + 5, discount: (ts[ts.length - 1]?.discount || 0) + 5 }])}
+          className="w-full mt-2 py-2 text-xs font-bold border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+        >
+          + 구간 추가
+        </button>
       </div>
     </div>
   );
@@ -1352,7 +1499,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, globalDiscounts, setGlobalDiscounts }) {
+function AdminView({ products, setProducts, reservations, globalDiscounts, setGlobalDiscounts, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -1380,7 +1527,7 @@ function AdminView({ products, setProducts, reservations, globalDiscounts, setGl
 
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} globalDiscounts={globalDiscounts} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} />}
-      {tab === 'settings' && <AdminSettings globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} />}
+      {tab === 'settings' && <AdminSettings globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />}
     </div>
   );
 }
@@ -1390,6 +1537,12 @@ export default function App() {
   const [products, setProducts] = useState(SEED_PRODUCTS);
   const [reservations, setReservations] = useState([]);
   const [globalDiscounts, setGlobalDiscounts] = useState([0, 10, 20, 30]);
+  const [regionThresholds, setRegionThresholds] = useState([
+    { count: 5, discount: 3 },
+    { count: 10, discount: 7 },
+    { count: 20, discount: 12 },
+  ]);
+  const [regionLabel, setRegionLabel] = useState('우리 동네');
   const [loaded, setLoaded] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
 
@@ -1405,9 +1558,13 @@ export default function App() {
       else if (res && !cancelled) setReservations(res);
 
       const { data: settings, error: setErr } = await supabase
-        .from('settings').select('globalDiscounts').eq('id', 1).single();
+        .from('settings').select('globalDiscounts, regionThresholds, regionLabel').eq('id', 1).single();
       if (setErr) console.error('settings load failed', setErr);
-      else if (settings && !cancelled) setGlobalDiscounts(settings.globalDiscounts);
+      else if (settings && !cancelled) {
+        setGlobalDiscounts(settings.globalDiscounts);
+        if (settings.regionThresholds) setRegionThresholds(settings.regionThresholds);
+        if (settings.regionLabel) setRegionLabel(settings.regionLabel);
+      }
 
       if (!cancelled) setLoaded(true);
     })();
@@ -1416,9 +1573,9 @@ export default function App() {
 
   useEffect(() => {
     if (!loaded) return;
-    supabase.from('settings').update({ globalDiscounts }).eq('id', 1)
+    supabase.from('settings').update({ globalDiscounts, regionThresholds, regionLabel }).eq('id', 1)
       .then(({ error }) => error && console.error('settings save failed', error));
-  }, [globalDiscounts, loaded]);
+  }, [globalDiscounts, regionThresholds, regionLabel, loaded]);
 
   async function addReservation(r) {
     setReservations((rs) => [...rs, r]);
@@ -1463,9 +1620,9 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} globalDiscounts={globalDiscounts} reservations={reservations} onAddReservation={addReservation} />
+          ? <ShopView products={products} globalDiscounts={globalDiscounts} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} onAddReservation={addReservation} />
           : adminUnlocked
-            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} />
+            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />
             : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>

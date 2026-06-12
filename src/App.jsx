@@ -16,17 +16,12 @@ import { SEED_PRODUCTS, makeProduct } from './data/seedProducts';
 /* ---------------------------------------------------------------------- */
 
 const CATEGORIES = [
-  { id: 'desk',       label: '책상',   icon: Table2 },
-  { id: 'chair',      label: '의자',   icon: Armchair },
-  { id: 'bed',        label: '침대',   icon: BedDouble },
-  { id: 'wardrobe',   label: '옷장',   icon: DoorClosed },
-  { id: 'drawer',     label: '서랍장', icon: Archive },
-  { id: 'bookshelf',  label: '책장',   icon: BookOpen },
-  { id: 'table',      label: '식탁',   icon: UtensilsCrossed },
-  { id: 'nightstand', label: '협탁',   icon: Lamp },
-  { id: 'shoerack',   label: '신발장', icon: Footprints },
-  { id: 'dryer',      label: '건조대', icon: Wind },
-  { id: 'hanger',     label: '행거',   icon: Shirt },
+  { id: 'desk',      label: '책상',     icon: Table2 },
+  { id: 'mattress',  label: '매트리스', icon: Layers },
+  { id: 'bedframe',  label: '침대프레임', icon: BedDouble },
+  { id: 'chair',     label: '의자',     icon: Armchair },
+  { id: 'hanger',    label: '행거',     icon: Shirt },
+  { id: 'wardrobe',  label: '옷장',     icon: DoorClosed },
 ];
 const CAT_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 

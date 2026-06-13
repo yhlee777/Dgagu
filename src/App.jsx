@@ -32,31 +32,44 @@ const IMAGE_SLOTS = [
   { label: '후면·디테일', hint: '뒷면이나 마감·소재 클로즈업' },
 ];
 
-const TIERS = [
-  { label: '즉시배송', sub: 'D+0~3' },
-  { label: '1주 이내', sub: 'D+4~10' },
-  { label: '2~3주',    sub: 'D+11~20' },
-  { label: '한 달 이상', sub: 'D+21~' },
+const ROOM_CHECK_ITEMS = [
+  { id: 'bedframe', label: '침대(프레임)' },
+  { id: 'desk', label: '책상' },
+  { id: 'wardrobe', label: '옷장' },
 ];
-const TIER_MAX = [3, 10, 20, Infinity];
+
+const EARLYBIRD_DAYS_DEFAULT = 28;     // 조기예약 기준일 (입주일 4주 전)
+const EARLYBIRD_DISCOUNT_DEFAULT = 6;  // 조기예약 할인 %
+const PEAK_MONTHS = [1, 7];            // 성수기 — 2월(1), 8월(7) — 0-indexed
+const PEAK_LEAD_DAYS = 42;             // 성수기 마감 기준 (6주)
+const REGION_GAUGE_MIN_COUNT = 3;      // 이 인원 이상 모여야 지역 게이지 노출
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function isoDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-function tierIndexFromDays(days) {
-  if (days == null) return null;
-  if (days < 0) return 0;
-  for (let i = 0; i < TIER_MAX.length; i++) if (days <= TIER_MAX[i]) return i;
-  return 3;
-}
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(`${dateStr}T00:00:00`);
   return Math.round((target - today) / 86400000);
+}
+function isEarlyBird(dateStr, earlyBirdDays = EARLYBIRD_DAYS_DEFAULT) {
+  const d = daysUntil(dateStr);
+  return d != null && d >= earlyBirdDays;
+}
+function isPeakSeason(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(`${dateStr}T00:00:00`);
+  return PEAK_MONTHS.includes(d.getMonth());
+}
+function isPeakDeadlineSoon(dateStr) {
+  if (!dateStr) return false;
+  const days = daysUntil(dateStr);
+  return isPeakSeason(dateStr) && days != null && days >= 0 && days < PEAK_LEAD_DAYS;
 }
 // 'YYYY-MM-DD' -> 그 주 월요일의 'YYYY-MM-DD' (입주 주간 묶음 키)
 function weekKey(dateStr) {
@@ -76,14 +89,14 @@ function regionDiscountForCount(thresholds, count) {
   for (const t of thresholds || []) if (count >= t.count) disc = Math.max(disc, t.discount);
   return disc;
 }
-function priceFor(product, tierIdx, regionDiscount = 0) {
-  const timeDisc = tierIdx == null ? 0 : product.discounts[tierIdx] || 0;
-  const totalDisc = Math.min(timeDisc + regionDiscount, 90);
+function priceFor(product, earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) {
+  const earlyDisc = earlyBird ? earlyBirdDiscount : 0;
+  const totalDisc = Math.min(earlyDisc + regionDiscount, 90);
   return Math.round(product.basePrice * (1 - totalDisc / 100));
 }
-function totalDiscountPct(product, tierIdx, regionDiscount = 0) {
-  const timeDisc = tierIdx == null ? 0 : product.discounts[tierIdx] || 0;
-  return Math.min(timeDisc + regionDiscount, 90);
+function totalDiscountPct(earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) {
+  const earlyDisc = earlyBird ? earlyBirdDiscount : 0;
+  return Math.min(earlyDisc + regionDiscount, 90);
 }
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
@@ -137,44 +150,48 @@ function Stat({ icon: Icon, label, value, sub }) {
 /* tier rate table — the signature piece                                   */
 /* ---------------------------------------------------------------------- */
 
-function TierGauge({ days, tierIdx, globalDiscounts }) {
+function ArrivalPromise({ moveInDate, earlyBirdDays, earlyBirdDiscount }) {
+  const days = daysUntil(moveInDate);
+  const early = isEarlyBird(moveInDate, earlyBirdDays);
+  const peakSoon = isPeakDeadlineSoon(moveInDate);
+
   return (
     <div style={{ borderTop: '4px solid var(--gold)' }}>
       <div className="border border-t-0" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
-          <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>입주일 할인 등급표</span>
-          <span className="idn-mono text-[11px]" style={{ color: '#fff', opacity: 0.65 }}>
-            {days == null ? '날짜 미선택' : `${dDayLabel(days)} 적용중`}
-          </span>
+          <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>입주일 도착 보장</span>
+          {moveInDate && (
+            <span className="idn-mono text-[11px]" style={{ color: '#fff', opacity: 0.65 }}>{dDayLabel(days)}</span>
+          )}
         </div>
-        <div className="grid grid-cols-4">
-          {TIERS.map((t, i) => {
-            const active = tierIdx === i;
-            return (
-              <div
-                key={t.label}
-                className={`relative text-center py-3 px-1 ${i > 0 ? 'border-l' : ''}`}
-                style={{ borderColor: 'var(--line)', background: active ? 'var(--bg)' : 'var(--surface)' }}
-              >
-                <div className="text-[10px] sm:text-[11px] font-bold" style={{ color: 'var(--ink)' }}>{t.label}</div>
-                <div className="idn-mono text-[9px] sm:text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.sub}</div>
-                <div
-                  className="idn-display text-2xl sm:text-3xl font-bold mt-1.5"
-                  style={{ color: active ? 'var(--stamp)' : 'var(--ink)', opacity: active ? 1 : 0.3 }}
-                >
-                  −{globalDiscounts[i]}%
-                </div>
-                {active && (
-                  <div className="idn-seal idn-seal-gold absolute -top-2.5 -right-1.5 z-10 w-8 h-8 sm:w-9 sm:h-9 text-[8px] sm:text-[9px]">
-                    선택
-                  </div>
-                )}
+        <div className="px-3 py-3">
+          {!moveInDate ? (
+            <div className="text-[12px] text-center py-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              입주 예정일을 선택하면 도착 약속을 보여드려요
+            </div>
+          ) : (
+            <>
+              <div className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>
+                {moveInDate.slice(5).replace('-', '/')} 오전, 설치까지 끝난 방으로
               </div>
-            );
-          })}
-        </div>
-        <div className="text-[10px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
-          ※ 입주 예정일에 따라 할인이 자동으로 적용돼요
+              <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.65 }}>
+                따로 사서 조립할 필요 없이, 입주일 오전에 묶음배송·설치까지 완료된 상태로 받아요.
+              </p>
+              <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 border" style={{ borderColor: early ? 'var(--gold)' : 'var(--line)', background: early ? 'color-mix(in srgb, var(--gold) 12%, var(--surface))' : 'var(--bg)' }}>
+                <span className="text-[12px] font-bold" style={{ color: 'var(--ink)' }}>
+                  {early ? '조기예약 할인 적용중' : `${earlyBirdDays}일 전 예약하면 조기예약 할인`}
+                </span>
+                <span className="idn-mono text-base font-bold" style={{ color: early ? 'var(--stamp)' : 'var(--ink)', opacity: early ? 1 : 0.35 }}>
+                  −{earlyBirdDiscount}%
+                </span>
+              </div>
+              {peakSoon && (
+                <div className="mt-2 px-2.5 py-2 border-2 text-[12px] font-bold flex items-center gap-1.5" style={{ borderColor: 'var(--stamp)', color: 'var(--stamp)' }}>
+                  ⚠ 성수기 입주 주간이에요 — 마감까지 {PEAK_LEAD_DAYS}일도 안 남아서 서두르는 게 좋아요
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -186,6 +203,7 @@ function TierGauge({ days, tierIdx, globalDiscounts }) {
 /* ---------------------------------------------------------------------- */
 
 function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
+  if (!moveInDate || count < REGION_GAUGE_MIN_COUNT) return null;
   const sorted = [...(thresholds || [])].sort((a, b) => a.count - b.count);
   const achieved = regionDiscountForCount(sorted, count);
   const next = sorted.find((t) => count < t.count);
@@ -213,29 +231,21 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
         </span>
       </div>
       <div className="px-3 py-2.5">
-        {!moveInDate ? (
-          <div className="text-[11px] text-center py-1" style={{ color: 'var(--ink)', opacity: 0.45 }}>
-            입주일을 정하면 같은 주간에 모인 이웃 수를 확인할 수 있어요
+        <div className="h-2 w-full overflow-hidden" style={{ background: 'var(--bg)' }}>
+          <div className="h-2" style={{ width: `${pct}%`, background: 'var(--gold)' }} />
+        </div>
+        <div className="text-[11px] mt-1.5 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+          {weekLabel} 입주 주간 · 지금까지 <b style={{ color: 'var(--ink)', opacity: 1 }}>{count}명</b> 모였어요
+          {next
+            ? <> · {next.count - count}명 더 모이면 −{next.discount}% 추가</>
+            : <> · 이번 주간 최대 할인 달성!</>}
+        </div>
+        {sorted.length > 0 && (
+          <div className="flex justify-between idn-mono text-[9px] mt-1" style={{ color: 'var(--ink)', opacity: 0.35 }}>
+            {sorted.map((t) => (
+              <span key={t.count}>{t.count}명 −{t.discount}%</span>
+            ))}
           </div>
-        ) : (
-          <>
-            <div className="h-2 w-full overflow-hidden" style={{ background: 'var(--bg)' }}>
-              <div className="h-2" style={{ width: `${pct}%`, background: 'var(--gold)' }} />
-            </div>
-            <div className="text-[11px] mt-1.5 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-              {weekLabel} 입주 주간 · 지금까지 <b style={{ color: 'var(--ink)', opacity: 1 }}>{count}명</b> 모였어요
-              {next
-                ? <> · {next.count - count}명 더 모이면 −{next.discount}% 추가</>
-                : <> · 이번 주간 최대 할인 달성!</>}
-            </div>
-            {sorted.length > 0 && (
-              <div className="flex justify-between idn-mono text-[9px] mt-1" style={{ color: 'var(--ink)', opacity: 0.35 }}>
-                {sorted.map((t) => (
-                  <span key={t.count}>{t.count}명 −{t.discount}%</span>
-                ))}
-              </div>
-            )}
-          </>
         )}
       </div>
     </div>
@@ -246,9 +256,7 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
 /* move-in date calendar — heatmap by discount tier                       */
 /* ---------------------------------------------------------------------- */
 
-const TIER_TINT = [0, 10, 18, 30];
-
-function MoveInCalendar({ value, onChange, globalDiscounts }) {
+function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [view, setView] = useState(() => ({ y: today.getFullYear(), m: today.getMonth() }));
@@ -278,7 +286,11 @@ function MoveInCalendar({ value, onChange, globalDiscounts }) {
     const dateStr = isoDate(view.y, view.m, dayNum);
     const diff = Math.round((dateObj - today) / 86400000);
     const isPast = diff < 0;
-    cells.push({ day: dayNum, dateStr, isPast, isToday: diff === 0, isSelected: dateStr === value, tierIdx: isPast ? null : tierIndexFromDays(diff) });
+    cells.push({
+      day: dayNum, dateStr, isPast, isToday: diff === 0, isSelected: dateStr === value,
+      early: isPast ? false : isEarlyBird(dateStr, earlyBirdDays),
+      peakSoon: isPast ? false : isPeakDeadlineSoon(dateStr),
+    });
   }
   while (cells.length > 28 && cells.slice(-7).every((c) => c === null)) cells.splice(-7);
 
@@ -321,20 +333,30 @@ function MoveInCalendar({ value, onChange, globalDiscounts }) {
               onClick={() => onChange(cell.dateStr)}
               className="aspect-square flex flex-col items-center justify-center gap-0.5"
               style={{
-                border: cell.isToday ? '2px solid var(--gold)' : '1px solid var(--line)',
-                background: cell.isSelected ? 'var(--ink)' : cell.isPast ? 'var(--bg)' : `color-mix(in srgb, var(--stamp) ${TIER_TINT[cell.tierIdx]}%, var(--surface))`,
+                border: cell.isToday ? '2px solid var(--gold)' : cell.peakSoon ? `1px solid var(--stamp)` : '1px solid var(--line)',
+                background: cell.isSelected ? 'var(--ink)' : cell.isPast ? 'var(--bg)' : cell.early ? 'color-mix(in srgb, var(--gold) 18%, var(--surface))' : 'var(--surface)',
                 color: cell.isSelected ? '#fff' : 'var(--ink)',
                 opacity: cell.isPast ? 0.35 : 1,
               }}
             >
               <span className="idn-mono text-xs font-bold leading-none">{cell.day}</span>
-              {!cell.isPast && (
-                <span className="idn-mono text-[8px] leading-none" style={{ opacity: cell.isSelected ? 0.85 : 0.55 }}>
-                  −{globalDiscounts[cell.tierIdx]}%
+              {!cell.isPast && cell.early && (
+                <span className="idn-mono text-[8px] leading-none" style={{ opacity: cell.isSelected ? 0.85 : 0.6 }}>
+                  −{earlyBirdDiscount}%
                 </span>
               )}
             </button>
           ) : <div key={i} />)}
+        </div>
+        <div className="flex items-center gap-3 mt-2 text-[10px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 inline-block border" style={{ background: 'color-mix(in srgb, var(--gold) 18%, var(--surface))', borderColor: 'var(--line)' }} />
+            조기예약 −{earlyBirdDiscount}%
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 inline-block border" style={{ borderColor: 'var(--stamp)' }} />
+            성수기 마감임박
+          </span>
         </div>
       </div>
     </div>
@@ -342,10 +364,10 @@ function MoveInCalendar({ value, onChange, globalDiscounts }) {
 }
 /* ---------------------------------------------------------------------- */
 
-function ProductCard({ product, tierIdx, regionDiscount = 0, qtyInCart, onClick }) {
+function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick }) {
   const Icon = CAT_BY_ID[product.category].icon;
-  const price = priceFor(product, tierIdx, regionDiscount);
-  const discPct = totalDiscountPct(product, tierIdx, regionDiscount);
+  const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
+  const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   return (
     <button
@@ -395,7 +417,7 @@ function ProductCard({ product, tierIdx, regionDiscount = 0, qtyInCart, onClick 
   );
 }
 
-function CategorySection({ category, products, tierIdx, regionDiscount = 0, cart, onCardClick }) {
+function CategorySection({ category, products, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, cart, onCardClick }) {
   const Icon = category.icon;
   const items = products.filter((p) => p.category === category.id);
   return (
@@ -417,7 +439,8 @@ function CategorySection({ category, products, tierIdx, regionDiscount = 0, cart
             <ProductCard
               key={p.id}
               product={p}
-              tierIdx={tierIdx}
+              earlyBird={earlyBird}
+              earlyBirdDiscount={earlyBirdDiscount}
               regionDiscount={regionDiscount}
               qtyInCart={cart[p.id] || 0}
               onClick={() => onCardClick(p.id)}
@@ -448,14 +471,14 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, tierIdx, regionDiscount = 0, qtyInCart, cart, reservations, onUpdateCart, onBack, onSelectProduct }) {
+function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, reservations, onUpdateCart, onBack, onSelectProduct }) {
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(0);
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
   const Icon = CAT_BY_ID[product.category].icon;
-  const price = priceFor(product, tierIdx, regionDiscount);
-  const discPct = totalDiscountPct(product, tierIdx, regionDiscount);
+  const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
+  const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
   const related = allProducts.filter((p) => p.category === product.category && p.id !== product.id);
@@ -590,7 +613,7 @@ function ProductPage({ product, allProducts, tierIdx, regionDiscount = 0, qtyInC
               {hasDiscount && <span className="idn-seal w-9 h-9 text-[10px] ml-auto">−{discPct}%</span>}
             </div>
             <div className="text-[11px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
-              {tierIdx == null ? '입주일을 정하면 할인가가 적용돼요' : '입주일을 늦추면 할인율이 더 커져요'}
+              {earlyBird == null ? '입주일을 정하면 가격이 확정돼요' : earlyBird ? '조기예약 할인이 적용된 가격이에요' : '입주 4주 이내 예약가예요'}
             </div>
           </div>
         </Section>
@@ -606,7 +629,8 @@ function ProductPage({ product, allProducts, tierIdx, regionDiscount = 0, qtyInC
               <ProductCard
                 key={p.id}
                 product={p}
-                tierIdx={tierIdx}
+                earlyBird={earlyBird}
+                earlyBirdDiscount={earlyBirdDiscount}
                 regionDiscount={regionDiscount}
                 qtyInCart={cart[p.id] || 0}
                 onClick={() => onSelectProduct(p.id)}
@@ -685,7 +709,7 @@ function CartBar({ cartEntries, subtotal, total, savings, hasDate, onReserve }) 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, tierIdx, regionDiscount = 0, regionLabel, initialAddress = '', onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, onSubmit }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -697,16 +721,17 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
   const canSubmit = name.trim() && phone.trim() && address.trim();
 
-  // 기간할인 vs 입주모임 할인 절약 금액 분리 (priceFor가 가산식이라 정확히 분리됨)
-  const timeSavings = cartEntries.reduce((s, e) => {
-    const timeOnlyPrice = priceFor(e.product, tierIdx, 0);
-    return s + (e.product.basePrice - timeOnlyPrice) * e.qty;
+  // 조기예약 할인 vs 입주모임 할인 절약 금액 분리 (priceFor가 가산식이라 정확히 분리됨)
+  const earlySavings = cartEntries.reduce((s, e) => {
+    const priceNoEarly = priceFor(e.product, false, regionDiscount, earlyBirdDiscount);
+    const priceWithEarly = priceFor(e.product, earlyBird, regionDiscount, earlyBirdDiscount);
+    return s + (priceNoEarly - priceWithEarly) * e.qty;
   }, 0);
-  const regionSavings = Math.max(0, savings - timeSavings);
+  const regionSavings = Math.max(0, savings - earlySavings);
 
   function handleSubmit() {
     if (!canSubmit) return;
-    onSubmit({ name, phone, address, moveInDate, tierIdx, items: cartEntries, subtotal, total, savings, ts: Date.now() });
+    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, items: cartEntries, subtotal, total, savings, ts: Date.now() });
     setDone(true);
   }
   function handleClose() {
@@ -739,17 +764,26 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                   <span className="idn-display">{won(total)}</span>
                 </div>
               </div>
+              <details className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
+                <summary className="px-2.5 py-2 font-bold cursor-pointer" style={{ color: 'var(--ink)' }}>
+                  왜 이 가격인가요?
+                </summary>
+                <div className="px-2.5 pb-2.5 pt-1 space-y-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
+                  <p>이 가격엔 공장 직발주가 + 묶음배송·설치비가 포함돼 있어요. 가구를 따로 사서 직접 조립하거나, 산 뒤에 설치만 따로 맡기면 보통 한 건당 4~8만원이 추가로 들어요.</p>
+                  <p>최저가라고 우기는 대신, 가격이 어떻게 만들어지는지를 보여드리는 거예요.</p>
+                </div>
+              </details>
               {savings > 0 && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
                   <div className="px-2.5 py-1.5 font-bold border-b" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.55 }}>
                     할인 내역
                   </div>
-                  {timeSavings > 0 && (
+                  {earlySavings > 0 && (
                     <div className="flex justify-between px-2.5 py-1.5">
                       <span style={{ color: 'var(--ink)', opacity: 0.7 }}>
-                        기간 할인 ({TIERS[tierIdx]?.label} · {TIERS[tierIdx]?.sub})
+                        조기예약 할인 (입주 {earlyBirdDays}일 전, −{earlyBirdDiscount}%)
                       </span>
-                      <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(timeSavings)}</span>
+                      <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(earlySavings)}</span>
                     </div>
                   )}
                   {regionSavings > 0 && (
@@ -824,8 +858,19 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 /* shop view                                                               */
 /* ---------------------------------------------------------------------- */
 
-function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, reservations, onAddReservation }) {
-  const [step, setStep] = useState('date'); // 'date' | 'address' | 'shop'
+function packageCategoriesFromRoomState(roomHas) {
+  const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
+  if (allHave) return { mattress: true }; // 새 잠자리 세트 — 풀옵션 방, 토퍼/매트리스만
+  const cats = {};
+  if (!roomHas.bedframe) { cats.bedframe = true; cats.mattress = true; }
+  if (!roomHas.desk) { cats.desk = true; cats.chair = true; }
+  if (!roomHas.wardrobe) { cats.wardrobe = true; cats.hanger = true; }
+  return cats;
+}
+
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, onAddReservation }) {
+  const [step, setStep] = useState('room'); // 'room' | 'date' | 'address' | 'shop'
+  const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
   const [moveInDate, setMoveInDate] = useState('');
   const [address, setAddress] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
@@ -835,7 +880,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
   const [modalOpen, setModalOpen] = useState(false);
 
   const days = daysUntil(moveInDate);
-  const tierIdx = tierIndexFromDays(days);
+  const earlyBird = moveInDate ? isEarlyBird(moveInDate, earlyBirdDays) : null;
   const wk = weekKey(moveInDate);
   const regionCount = regionCountForWeek(reservations, wk);
   const regionDiscount = regionDiscountForCount(regionThresholds, regionCount);
@@ -846,6 +891,10 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
       setAddress(data.roadAddress || data.jibunAddress || data.address);
       setAddressDetail('');
     });
+  }
+  function handleRoomNext() {
+    setChecked(packageCategoriesFromRoomState(roomHas));
+    setStep('date');
   }
 
   function toggleCategory(catId) {
@@ -862,7 +911,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
 
   const cartEntries = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((p) => p.id === id);
-    const unitPrice = priceFor(product, tierIdx, regionDiscount);
+    const unitPrice = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
     return { product, qty, unitPrice, lineBase: product.basePrice * qty, lineTotal: unitPrice * qty };
   });
   const subtotal = cartEntries.reduce((s, e) => s + e.lineBase, 0);
@@ -888,7 +937,8 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         key={detailProduct.id}
         product={detailProduct}
         allProducts={products}
-        tierIdx={tierIdx}
+        earlyBird={earlyBird}
+        earlyBirdDiscount={earlyBirdDiscount}
         regionDiscount={regionDiscount}
         qtyInCart={cart[detailProduct.id] || 0}
         cart={cart}
@@ -902,17 +952,18 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
 
   return (
     <div className="pb-32">
-      <div className="px-4 pt-3 flex items-center justify-center gap-1.5">
+      <div className="px-4 pt-3 flex items-center justify-center gap-1">
         {[
+          { id: 'room', label: '방 상태' },
           { id: 'date', label: '입주일' },
           { id: 'address', label: '배송지' },
           { id: 'shop', label: '가구선택' },
         ].map((s, i) => {
-          const order = { date: 0, address: 1, shop: 2 };
+          const order = { room: 0, date: 1, address: 2, shop: 3 };
           const active = order[step] === i;
           const done = order[step] > i;
           return (
-            <div key={s.id} className="flex items-center gap-1.5">
+            <div key={s.id} className="flex items-center gap-1">
               <div className="flex items-center gap-1">
                 <span
                   className="w-4 h-4 flex items-center justify-center text-[10px] font-bold idn-mono"
@@ -926,24 +977,71 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
                 </span>
                 <span className="text-[11px] font-bold" style={{ color: 'var(--ink)', opacity: active ? 1 : 0.4 }}>{s.label}</span>
               </div>
-              {i < 2 && <span style={{ color: 'var(--ink)', opacity: 0.2 }}>—</span>}
+              {i < 3 && <span style={{ color: 'var(--ink)', opacity: 0.2 }}>—</span>}
             </div>
           );
         })}
       </div>
 
-      {step === 'date' && (
+      {step === 'room' && (
         <div className="px-4 pt-3 space-y-3">
-          <MoveInCalendar value={moveInDate} onChange={setMoveInDate} globalDiscounts={globalDiscounts} />
-          <TierGauge days={days} tierIdx={tierIdx} globalDiscounts={globalDiscounts} />
+          <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+            <h3 className="idn-display font-bold text-base mb-1" style={{ color: 'var(--ink)' }}>내 방에 뭐가 있나요?</h3>
+            <p className="text-xs mb-1" style={{ color: 'var(--ink)', opacity: 0.6 }}>이미 있는 건 빼고, 필요한 것만 보여드릴게요</p>
+            {ROOM_CHECK_ITEMS.map((item) => (
+              <div key={item.id} className="flex items-center justify-between py-2.5 border-t" style={{ borderColor: 'var(--line)' }}>
+                <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.label}</span>
+                <div className="flex gap-1.5">
+                  {[{ v: true, label: '있어요' }, { v: false, label: '없어요' }].map((opt) => (
+                    <button
+                      key={String(opt.v)}
+                      onClick={() => setRoomHas((h) => ({ ...h, [item.id]: opt.v }))}
+                      className="px-3 py-1.5 text-xs font-bold border"
+                      style={{
+                        borderColor: 'var(--ink)',
+                        background: roomHas[item.id] === opt.v ? 'var(--ink)' : 'transparent',
+                        color: roomHas[item.id] === opt.v ? '#fff' : 'var(--ink)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
           <button
-            onClick={() => setStep('address')}
-            disabled={!moveInDate}
+            onClick={handleRoomNext}
+            disabled={Object.values(roomHas).some((v) => v === null)}
             className="w-full py-3 font-bold text-sm disabled:opacity-30"
             style={{ background: 'var(--ink)', color: '#fff' }}
           >
-            다음 — 배송지 입력
+            다음 — 입주일 선택
           </button>
+        </div>
+      )}
+
+      {step === 'date' && (
+        <div className="px-4 pt-3 space-y-3">
+          <MoveInCalendar value={moveInDate} onChange={setMoveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
+          <ArrivalPromise moveInDate={moveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep('room')}
+              className="flex-shrink-0 px-4 py-3 font-bold text-sm border-2"
+              style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+            >
+              이전
+            </button>
+            <button
+              onClick={() => setStep('address')}
+              disabled={!moveInDate}
+              className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
+              style={{ background: 'var(--ink)', color: '#fff' }}
+            >
+              다음 — 배송지 입력
+            </button>
+          </div>
         </div>
       )}
 
@@ -1047,7 +1145,8 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
             key={c.id}
             category={c}
             products={products}
-            tierIdx={tierIdx}
+            earlyBird={earlyBird}
+            earlyBirdDiscount={earlyBirdDiscount}
             regionDiscount={regionDiscount}
             cart={cart}
             onCardClick={(pid) => setDetailId(pid)}
@@ -1060,7 +1159,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         )}
       </div>
 
-      <CartBar cartEntries={cartEntries} subtotal={subtotal} total={total} savings={savings} hasDate={tierIdx != null} onReserve={handleReserve} />
+      <CartBar cartEntries={cartEntries} subtotal={subtotal} total={total} savings={savings} hasDate={!!moveInDate} onReserve={handleReserve} />
       <ReservationModal
         open={modalOpen}
         onClose={handleModalClose}
@@ -1069,10 +1168,13 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
         total={total}
         savings={savings}
         moveInDate={moveInDate}
-        tierIdx={tierIdx}
+        earlyBird={earlyBird}
+        earlyBirdDays={earlyBirdDays}
+        earlyBirdDiscount={earlyBirdDiscount}
         regionDiscount={regionDiscount}
         regionLabel={regionLabel}
         initialAddress={fullAddress}
+        roomHas={roomHas}
         onSubmit={handleSubmitReservation}
       />
         </>
@@ -1085,7 +1187,7 @@ function ShopView({ products, globalDiscounts, regionThresholds, regionLabel, re
 /* admin: product form                                                     */
 /* ---------------------------------------------------------------------- */
 
-function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
+function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCancel }) {
   const isNew = initial == null;
   const [form, setForm] = useState(() => ({
     name: initial?.name || '',
@@ -1101,8 +1203,6 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
     dims: initial?.dims || '',
     material: initial?.material || '',
     images: initial?.images?.length ? [...initial.images, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
-    useCustomDiscounts: initial ? true : false,
-    discounts: initial?.discounts || [...globalDiscounts],
   }));
 
   function set(field, value) {
@@ -1124,13 +1224,6 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
       console.error('image resize failed', err);
     }
   }
-  function setDiscount(i, value) {
-    setForm((f) => {
-      const d = [...f.discounts];
-      d[i] = Number(value);
-      return { ...f, discounts: d, useCustomDiscounts: true };
-    });
-  }
   function setHighlight(i, value) {
     setForm((f) => {
       const h = [...f.highlights];
@@ -1138,8 +1231,6 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
       return { ...f, highlights: h };
     });
   }
-
-  const effectiveDiscounts = form.useCustomDiscounts ? form.discounts : globalDiscounts;
 
   function handleSave() {
     if (!form.name.trim()) return;
@@ -1158,7 +1249,6 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
       dims: form.dims.trim(),
       material: form.material.trim(),
       images: form.images,
-      discounts: effectiveDiscounts,
     });
   }
 
@@ -1295,43 +1385,18 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
         </div>
       </div>
 
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-bold" style={{ color: 'var(--ink)' }}>입주일별 할인율</label>
-          <label className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-            <input type="checkbox" checked={!form.useCustomDiscounts} onChange={(e) => set('useCustomDiscounts', !e.target.checked)} />
-            기본값 사용 ({globalDiscounts.map((d) => `${d}%`).join(' / ')})
-          </label>
-        </div>
-        <div className="grid grid-cols-4 gap-1.5">
-          {TIERS.map((t, i) => (
-            <div key={t.label} className="border px-2 py-1.5 text-center" style={{ borderColor: 'var(--line)' }}>
-              <div className="text-[10px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.label}</div>
-              {i === 0 ? (
-                <div className="idn-mono text-sm font-bold" style={{ color: 'var(--ink)' }}>0%</div>
-              ) : (
-                <input
-                  type="number" min="0" max="90"
-                  value={effectiveDiscounts[i]}
-                  onChange={(e) => setDiscount(i, e.target.value)}
-                  className="w-full text-center idn-mono text-sm font-bold bg-transparent"
-                  style={{ color: 'var(--ink)' }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="mt-3 border" style={{ borderColor: 'var(--line)' }}>
-        <div className="text-[11px] font-bold px-2.5 pt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>가격 미리보기 (할인가 / 마진율)</div>
-        <div className="grid grid-cols-4 gap-1.5 p-2.5">
-          {TIERS.map((t, i) => {
-            const price = Math.round(form.basePrice * (1 - effectiveDiscounts[i] / 100));
+        <div className="text-[11px] font-bold px-2.5 pt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+          가격 미리보기 (할인가 / 마진율) — 조기예약(입주 {earlyBirdDays}일 전) −{earlyBirdDiscount}%, 기본 할인율은 관리자 → 기본설정에서 조정
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 p-2.5">
+          {[{ label: '일반가', disc: 0 }, { label: `조기예약가 (−${earlyBirdDiscount}%)`, disc: earlyBirdDiscount }].map((t) => {
+            const price = Math.round(form.basePrice * (1 - t.disc / 100));
             const margin = price > 0 ? Math.round(((price - form.cost) / price) * 100) : 0;
             return (
               <div key={t.label} className="text-center">
-                <div className="idn-mono text-xs font-bold" style={{ color: 'var(--ink)' }}>{price.toLocaleString('ko-KR')}</div>
+                <div className="text-[10px] mb-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.label}</div>
+                <div className="idn-mono text-sm font-bold" style={{ color: 'var(--ink)' }}>{price.toLocaleString('ko-KR')}</div>
                 <div className="idn-mono text-[10px]" style={{ color: margin >= 0 ? 'var(--ink)' : 'var(--stamp)', opacity: margin >= 0 ? 0.5 : 1 }}>
                   마진 {margin}%
                 </div>
@@ -1359,7 +1424,7 @@ function ProductForm({ initial, globalDiscounts, onSave, onCancel }) {
 /* admin: product list / settings / reservations                          */
 /* ---------------------------------------------------------------------- */
 
-function AdminProducts({ products, setProducts, globalDiscounts }) {
+function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount }) {
   const [editing, setEditing] = useState(null); // null | 'new' | product
 
   async function handleSave(data) {
@@ -1386,7 +1451,8 @@ function AdminProducts({ products, setProducts, globalDiscounts }) {
       {editing ? (
         <ProductForm
           initial={editing === 'new' ? null : editing}
-          globalDiscounts={globalDiscounts}
+          earlyBirdDays={earlyBirdDays}
+          earlyBirdDiscount={earlyBirdDiscount}
           onSave={handleSave}
           onCancel={() => setEditing(null)}
         />
@@ -1411,7 +1477,7 @@ function AdminProducts({ products, setProducts, globalDiscounts }) {
               </div>
               <div className="border" style={{ borderColor: 'var(--line)' }}>
                 {items.map((p, idx) => {
-                  const lowest = Math.round(p.basePrice * (1 - p.discounts[3] / 100));
+                  const lowest = Math.round(p.basePrice * (1 - earlyBirdDiscount / 100));
                   const margin = lowest > 0 ? Math.round(((lowest - p.cost) / lowest) * 100) : 0;
                   return (
                     <div key={p.id} className={`flex items-center justify-between gap-2 p-2.5 ${idx > 0 ? 'border-t' : ''}`} style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
@@ -1451,38 +1517,45 @@ function AdminProducts({ products, setProducts, globalDiscounts }) {
   );
 }
 
-function AdminSettings({ globalDiscounts, setGlobalDiscounts, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
+function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
   function updateThreshold(i, field, value) {
     setRegionThresholds((ts) => ts.map((t, idx) => (idx === i ? { ...t, [field]: Number(value) || 0 } : t)));
   }
   return (
     <div className="space-y-3">
       <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>기본 할인율 설정</h3>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>조기예약 할인 설정</h3>
         <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-          새 상품을 등록할 때 기본으로 적용돼요. 이미 등록된 상품에는 영향을 주지 않아요.
+          입주일까지 일정 기간 이상 남았을 때만 적용되는 단일 할인이에요. 입주일 캘린더에서 "도착 보장"과 함께 작게 표시돼요.
         </p>
-        <div className="grid grid-cols-4 gap-2">
-          {TIERS.map((t, i) => (
-            <div key={t.label} className="border px-2 py-2 text-center" style={{ borderColor: 'var(--line)' }}>
-              <div className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>{t.label}</div>
-              <div className="text-[10px] idn-mono mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.sub}</div>
-              {i === 0 ? (
-                <div className="idn-mono text-base font-bold" style={{ color: 'var(--ink)' }}>0%</div>
-              ) : (
-                <input
-                  type="number" min="0" max="90"
-                  value={globalDiscounts[i]}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setGlobalDiscounts((g) => g.map((x, idx) => (idx === i ? v : x)));
-                  }}
-                  className="w-full text-center idn-mono text-base font-bold bg-transparent"
-                  style={{ color: 'var(--ink)' }}
-                />
-              )}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="border px-2 py-2 text-center" style={{ borderColor: 'var(--line)' }}>
+            <div className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink)' }}>조기예약 기준 (입주일 며칠 전부터)</div>
+            <div className="flex items-center justify-center gap-1">
+              <input
+                type="number" min="1" max="180"
+                value={earlyBirdDays}
+                onChange={(e) => setEarlyBirdDays(Number(e.target.value) || 0)}
+                className="w-16 text-center idn-mono text-base font-bold bg-transparent"
+                style={{ color: 'var(--ink)' }}
+              />
+              <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.5 }}>일 전</span>
             </div>
-          ))}
+          </div>
+          <div className="border px-2 py-2 text-center" style={{ borderColor: 'var(--line)' }}>
+            <div className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink)' }}>조기예약 할인율</div>
+            <div className="flex items-center justify-center gap-1">
+              <span className="idn-mono text-base font-bold" style={{ color: 'var(--ink)' }}>−</span>
+              <input
+                type="number" min="0" max="90"
+                value={earlyBirdDiscount}
+                onChange={(e) => setEarlyBirdDiscount(Number(e.target.value) || 0)}
+                className="w-16 text-center idn-mono text-base font-bold bg-transparent"
+                style={{ color: 'var(--ink)' }}
+              />
+              <span className="idn-mono text-base font-bold" style={{ color: 'var(--ink)' }}>%</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1585,7 +1658,7 @@ function AdminReservations({ reservations }) {
         <div className="idn-display font-bold text-sm mb-2" style={{ color: 'var(--ink)' }}>예약 목록</div>
         <div className="space-y-2">
           {[...reservations].reverse().map((r) => {
-            const tierLabel = r.tierIdx != null ? TIERS[r.tierIdx].label : '날짜 미정';
+            const tierLabel = r.moveInDate ? (r.earlyBird ? '조기예약' : '일반') : '날짜 미정';
             return (
               <div key={r.ts} className="border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1661,7 +1734,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, globalDiscounts, setGlobalDiscounts, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
+function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -1687,9 +1760,9 @@ function AdminView({ products, setProducts, reservations, globalDiscounts, setGl
         })}
       </div>
 
-      {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} globalDiscounts={globalDiscounts} />}
+      {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} />}
-      {tab === 'settings' && <AdminSettings globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />}
+      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />}
     </div>
   );
 }
@@ -1698,7 +1771,8 @@ export default function App() {
   const [view, setView] = useState('shop');
   const [products, setProducts] = useState(SEED_PRODUCTS);
   const [reservations, setReservations] = useState([]);
-  const [globalDiscounts, setGlobalDiscounts] = useState([0, 10, 20, 30]);
+  const [earlyBirdDays, setEarlyBirdDays] = useState(EARLYBIRD_DAYS_DEFAULT);
+  const [earlyBirdDiscount, setEarlyBirdDiscount] = useState(EARLYBIRD_DISCOUNT_DEFAULT);
   const [regionThresholds, setRegionThresholds] = useState([
     { count: 5, discount: 3 },
     { count: 10, discount: 7 },
@@ -1720,10 +1794,11 @@ export default function App() {
       else if (res && !cancelled) setReservations(res);
 
       const { data: settings, error: setErr } = await supabase
-        .from('settings').select('globalDiscounts, regionThresholds, regionLabel').eq('id', 1).single();
+        .from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel').eq('id', 1).single();
       if (setErr) console.error('settings load failed', setErr);
       else if (settings && !cancelled) {
-        setGlobalDiscounts(settings.globalDiscounts);
+        if (settings.earlyBirdDays != null) setEarlyBirdDays(settings.earlyBirdDays);
+        if (settings.earlyBirdDiscount != null) setEarlyBirdDiscount(settings.earlyBirdDiscount);
         if (settings.regionThresholds) setRegionThresholds(settings.regionThresholds);
         if (settings.regionLabel) setRegionLabel(settings.regionLabel);
       }
@@ -1735,15 +1810,15 @@ export default function App() {
 
   useEffect(() => {
     if (!loaded) return;
-    supabase.from('settings').update({ globalDiscounts, regionThresholds, regionLabel }).eq('id', 1)
+    supabase.from('settings').update({ earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel }).eq('id', 1)
       .then(({ error }) => error && console.error('settings save failed', error));
-  }, [globalDiscounts, regionThresholds, regionLabel, loaded]);
+  }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, loaded]);
 
   async function addReservation(r) {
     setReservations((rs) => [...rs, r]);
     const { error } = await supabase.from('reservations').insert({
       name: r.name, phone: r.phone, address: r.address,
-      moveInDate: r.moveInDate, tierIdx: r.tierIdx,
+      moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas,
       items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
     });
     if (error) console.error('reservation save failed', error);
@@ -1782,9 +1857,9 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} globalDiscounts={globalDiscounts} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} onAddReservation={addReservation} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} onAddReservation={addReservation} />
           : adminUnlocked
-            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} globalDiscounts={globalDiscounts} setGlobalDiscounts={setGlobalDiscounts} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />
+            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />
             : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>

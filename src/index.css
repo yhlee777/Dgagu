@@ -8,6 +8,8 @@
 .idn-mono { font-family: 'Space Mono', monospace; }
 .idn-root { font-family: 'Gothic A1', sans-serif; }
 .idn-root input, .idn-root select, .idn-root textarea, .idn-root button { font-family: inherit; }
+/* iOS Safari는 입력란 글자가 16px보다 작으면 포커스 시 화면을 확대해요 — 그걸 막기 위해 입력란은 항상 16px 이상으로 */
+.idn-root input, .idn-root select, .idn-root textarea { font-size: 16px; }
 .idn-seal {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   border-radius: 9999px; border: 2px solid var(--stamp); color: var(--stamp);

@@ -252,6 +252,50 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
   );
 }
 
+function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, onAddAll }) {
+  const name = packageNameFromRoomState(roomHas);
+  const catIds = Object.keys(packageCategoriesFromRoomState(roomHas));
+  const items = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
+  if (items.length === 0) return null;
+  const total = items.reduce((s, p) => s + priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount), 0);
+  return (
+    <div className="border-2" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+      <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
+        <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
+        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>고민 없이 바로 담기</span>
+      </div>
+      <div className="px-3 py-2.5">
+        <div className="space-y-1.5 mb-2">
+          {items.map((p) => {
+            const Icon = CAT_BY_ID[p.category].icon;
+            return (
+              <div key={p.id} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5" style={{ color: 'var(--ink)', opacity: 0.75 }}>
+                  <Icon size={13} /> {p.name}
+                </span>
+                <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>
+                  {won(priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+          <span>합계</span>
+          <span className="idn-display">{won(total)}</span>
+        </div>
+        <button
+          onClick={() => onAddAll(items)}
+          className="w-full py-2.5 font-bold text-sm"
+          style={{ background: 'var(--ink)', color: '#fff' }}
+        >
+          이 구성 한번에 담기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------------- */
 /* move-in date calendar — heatmap by discount tier                       */
 /* ---------------------------------------------------------------------- */
@@ -867,6 +911,19 @@ function packageCategoriesFromRoomState(roomHas) {
   if (!roomHas.wardrobe) { cats.wardrobe = true; cats.hanger = true; }
   return cats;
 }
+function packageNameFromRoomState(roomHas) {
+  const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
+  const noneHave = !roomHas.bedframe && !roomHas.desk && !roomHas.wardrobe;
+  if (allHave) return '새 잠자리 세트';
+  if (noneHave) return '빈 방 풀세팅';
+  return '자취 시작 세트';
+}
+// 카테고리별 "기본형" 대표 상품 — 고민 없이 우리가 고른 추천 구성
+function defaultProductForCategory(products, catId) {
+  const items = products.filter((p) => p.category === catId);
+  if (items.length === 0) return null;
+  return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
+}
 
 function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, onAddReservation }) {
   const [step, setStep] = useState('room'); // 'room' | 'date' | 'address' | 'shop'
@@ -878,6 +935,8 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const [cart, setCart] = useState({}); // productId -> qty
   const [detailId, setDetailId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => { window.scrollTo(0, 0); }, [step]);
 
   const days = daysUntil(moveInDate);
   const earlyBird = moveInDate ? isEarlyBird(moveInDate, earlyBirdDays) : null;
@@ -1108,7 +1167,15 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         </button>
       </div>
 
-      <div className="px-4 mt-3">
+      <div className="px-4 mt-3 space-y-3">
+        <PackageCard
+          products={products}
+          roomHas={roomHas}
+          earlyBird={earlyBird}
+          earlyBirdDiscount={earlyBirdDiscount}
+          regionDiscount={regionDiscount}
+          onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
+        />
         <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
       </div>
 

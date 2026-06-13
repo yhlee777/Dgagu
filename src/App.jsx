@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Table2, Armchair, BedDouble, DoorClosed, Archive, BookOpen, UtensilsCrossed,
   Lamp, Footprints, Wind, Shirt, Star, ShoppingBag, Calendar, X,
-  Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList,
+  Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList, Package,
   Phone, User, MapPin, ArrowLeft, LayoutGrid, Wallet,
   Users, Trophy, BadgePercent, Ruler, Layers,
   ChevronLeft, ChevronRight, Lock, Search,
@@ -120,6 +120,26 @@ function dDayLabel(days) {
   if (days < 0) return '지난 날짜';
   if (days === 0) return 'D-DAY';
   return `D-${days}`;
+}
+// QR/링크로 들어온 ?agent=A001 같은 부동산 추천코드를 잡아서 보관해요.
+// 한 번 잡으면 같은 브라우저에서는 계속 유지돼서, 둘러보다 나중에 예약해도 추천이 따라가요.
+function captureReferralAgent() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('agent');
+    if (fromUrl) {
+      localStorage.setItem('dgagu_referral_agent', fromUrl);
+      // 주소창에서 ?agent=... 를 지워서 깔끔하게
+      params.delete('agent');
+      const rest = params.toString();
+      const newUrl = window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash;
+      window.history.replaceState({}, '', newUrl);
+      return fromUrl;
+    }
+    return localStorage.getItem('dgagu_referral_agent') || '';
+  } catch {
+    return '';
+  }
 }
 function reviewLabel(n) {
   return n >= 9999 ? '9,999+' : n.toLocaleString('ko-KR');
@@ -753,7 +773,7 @@ function CartBar({ cartEntries, subtotal, total, savings, hasDate, onReserve }) 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -775,7 +795,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
   function handleSubmit() {
     if (!canSubmit) return;
-    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, items: cartEntries, subtotal, total, savings, ts: Date.now() });
+    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, items: cartEntries, subtotal, total, savings, ts: Date.now() });
     setDone(true);
   }
   function handleClose() {
@@ -925,7 +945,7 @@ function defaultProductForCategory(products, catId) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, onAddReservation }) {
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, onAddReservation }) {
   const [step, setStep] = useState('room'); // 'room' | 'date' | 'address' | 'shop'
   const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
   const [moveInDate, setMoveInDate] = useState('');
@@ -1242,6 +1262,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         regionLabel={regionLabel}
         initialAddress={fullAddress}
         roomHas={roomHas}
+        referralAgent={referralAgent}
         onSubmit={handleSubmitReservation}
       />
         </>
@@ -1696,6 +1717,13 @@ function AdminReservations({ reservations }) {
   const ranking = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
   const maxCount = ranking[0]?.[1] || 1;
 
+  const agentCount = {};
+  reservations.forEach((r) => {
+    const key = r.referralAgent || '직접 방문';
+    agentCount[key] = (agentCount[key] || 0) + 1;
+  });
+  const agentRanking = Object.entries(agentCount).sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="space-y-3">
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
@@ -1721,6 +1749,22 @@ function AdminReservations({ reservations }) {
         </div>
       </div>
 
+      {agentRanking.length > 0 && agentRanking.some(([key]) => key !== '직접 방문') && (
+        <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+          <div className="flex items-center gap-1.5 idn-display font-bold text-sm mb-2" style={{ color: 'var(--ink)' }}>
+            <Users size={15} style={{ color: 'var(--ink)' }} /> 유입 경로 (부동산 제휴)
+          </div>
+          <div className="space-y-1">
+            {agentRanking.map(([key, count]) => (
+              <div key={key} className="flex items-center justify-between text-xs" style={{ color: 'var(--ink)' }}>
+                <span className="font-bold">{key}</span>
+                <span className="idn-mono" style={{ opacity: 0.6 }}>{count}건</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="idn-display font-bold text-sm mb-2" style={{ color: 'var(--ink)' }}>예약 목록</div>
         <div className="space-y-2">
@@ -1735,6 +1779,11 @@ function AdminReservations({ reservations }) {
                   </div>
                 </div>
                 <div className="idn-mono text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{r.phone}</div>
+                {r.referralAgent && (
+                  <div className="text-[11px] mb-1.5 inline-block px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
+                    추천: {r.referralAgent}
+                  </div>
+                )}
                 {r.address && (
                   <div className="flex items-start gap-1 text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>
                     <MapPin size={11} className="flex-shrink-0 mt-0.5" />
@@ -1764,6 +1813,82 @@ function AdminReservations({ reservations }) {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* admin: 발주 집계 — 입주주간별 상품 필요수량                              */
+/* ---------------------------------------------------------------------- */
+
+function aggregateOrdersByWeek(reservations) {
+  const byWeek = {};
+  reservations.forEach((r) => {
+    if (!r.moveInDate) return;
+    const wk = weekKey(r.moveInDate);
+    if (!byWeek[wk]) byWeek[wk] = { items: {}, reservationCount: 0 };
+    byWeek[wk].reservationCount += 1;
+    (r.items || []).forEach((it) => {
+      const pid = it.product?.id;
+      if (!pid) return;
+      if (!byWeek[wk].items[pid]) byWeek[wk].items[pid] = { product: it.product, qty: 0 };
+      byWeek[wk].items[pid].qty += it.qty;
+    });
+  });
+  return byWeek;
+}
+
+function AdminOrders({ reservations }) {
+  const byWeek = aggregateOrdersByWeek(reservations);
+  const weekKeys = Object.keys(byWeek).sort();
+  const todayWk = weekKey(isoDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+
+  if (weekKeys.length === 0) {
+    return (
+      <div className="border p-4 text-center text-sm" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
+        아직 예약이 없어요 — 예약이 들어오면 입주주간별로 발주 수량이 여기 모여요
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+        같은 입주 주간(월~일)에 들어온 예약을 상품별로 합산했어요. 예약 확정 즉시 발주하는 걸 기본으로 하고,
+        리드타임을 고려해 입주일 전까지 받을 수 있게 일정을 맞추세요.
+      </p>
+      {weekKeys.map((wk) => {
+        const { items, reservationCount } = byWeek[wk];
+        const start = new Date(`${wk}T00:00:00`);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+        const isPast = wk < todayWk;
+        const sortedItems = Object.values(items).sort((a, b) => CAT_BY_ID[a.product.category]?.label.localeCompare(CAT_BY_ID[b.product.category]?.label) || 0);
+        return (
+          <div key={wk} className="border" style={{ borderColor: 'var(--ink)', background: 'var(--surface)', opacity: isPast ? 0.5 : 1 }}>
+            <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
+              <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>
+                {fmt(start)} ~ {fmt(end)} 입주 주간 {isPast && '(지난 주간)'}
+              </span>
+              <span className="idn-mono text-[11px]" style={{ color: '#fff', opacity: 0.65 }}>예약 {reservationCount}건</span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
+              {sortedItems.map(({ product, qty }) => {
+                const Icon = CAT_BY_ID[product.category]?.icon;
+                return (
+                  <div key={product.id} className="flex items-center justify-between px-3 py-2 text-sm" style={{ borderColor: 'var(--line)' }}>
+                    <span className="flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
+                      {Icon && <Icon size={14} />} {product.name}
+                    </span>
+                    <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{qty}개</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1805,6 +1930,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
+    { id: 'orders', label: '발주', icon: Package },
     { id: 'reservations', label: '예약현황', icon: ClipboardList },
     { id: 'settings', label: '기본설정', icon: Settings2 },
   ];
@@ -1828,6 +1954,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
       </div>
 
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
+      {tab === 'orders' && <AdminOrders reservations={reservations} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} />}
       {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />}
     </div>
@@ -1846,6 +1973,7 @@ export default function App() {
     { count: 20, discount: 12 },
   ]);
   const [regionLabel, setRegionLabel] = useState('우리 동네');
+  const [referralAgent] = useState(() => captureReferralAgent());
   const [loaded, setLoaded] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
 
@@ -1885,7 +2013,7 @@ export default function App() {
     setReservations((rs) => [...rs, r]);
     const { error } = await supabase.from('reservations').insert({
       name: r.name, phone: r.phone, address: r.address,
-      moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas,
+      moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
       items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
     });
     if (error) console.error('reservation save failed', error);
@@ -1924,7 +2052,7 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} onAddReservation={addReservation} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} onAddReservation={addReservation} />
           : adminUnlocked
             ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />
             : <AdminGate onUnlock={() => setAdminUnlocked(true)} />

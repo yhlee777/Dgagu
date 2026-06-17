@@ -323,7 +323,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                   </button>
                   <span className="flex items-center gap-1.5 flex-shrink-0">
                     <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>
-                      {won(priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount) + (installIncluded && p.needsInstall ? (p.installFee || 0) : 0))}
+                      {won(priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount))}
                     </span>
                     {alternatives.length > 1 && (
                       <button
@@ -338,14 +338,14 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                 </div>
                 {p.needsInstall && (
                   <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-                    {installIncluded ? `조립설치비 ${won(p.installFee || 0)} 포함` : '조립설치 미포함 — 직접 조립 필요'}
+                    {installIncluded ? '조립설치 필요 — 설치비는 합계에 포함돼요' : '조립설치 미포함 — 직접 조립 필요'}
                   </div>
                 )}
                 {isOpen && (
                   <div className="mt-1 mb-1.5 ml-4 space-y-1 border-l pl-2" style={{ borderColor: 'var(--line)' }}>
                     {alternatives.map((alt) => {
                       const active = alt.id === p.id;
-                      const altPrice = priceFor(alt, earlyBird, regionDiscount, earlyBirdDiscount) + (installIncluded && alt.needsInstall ? (alt.installFee || 0) : 0);
+                      const altPrice = priceFor(alt, earlyBird, regionDiscount, earlyBirdDiscount);
                       return (
                         <div key={alt.id} className="w-full flex items-center justify-between text-[11px] py-1" style={{ color: 'var(--ink)', opacity: active ? 1 : 0.6 }}>
                           <button onClick={() => onViewDetail(alt.id)} className="flex items-center gap-1 underline text-left" style={{ textDecorationColor: 'var(--line)' }}>
@@ -497,7 +497,6 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, qtyInCart, onClick }) {
   const Icon = CAT_BY_ID[product.category].icon;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
-  const installFee = installIncluded && product.needsInstall ? (product.installFee || 0) : 0;
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   return (
@@ -535,16 +534,16 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
             <div className="flex items-end justify-between gap-1.5">
               <div className="min-w-0">
                 <div className="idn-mono text-[10px] line-through truncate" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(product.basePrice)}</div>
-                <div className="idn-display text-lg font-bold leading-none" style={{ color: 'var(--ink)' }}>{won(price + installFee)}</div>
+                <div className="idn-display text-lg font-bold leading-none" style={{ color: 'var(--ink)' }}>{won(price)}</div>
               </div>
               <span className="idn-seal w-10 h-10 text-[10px]">−{discPct}%</span>
             </div>
           ) : (
-            <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(price + installFee)}</div>
+            <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</div>
           )}
           {product.needsInstall && (
             <div className="text-[9px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-              {installIncluded ? '조립설치 포함가' : '조립설치 미포함'}
+              {installIncluded ? '조립설치 필요 — 설치비 별도 포함' : '조립설치 미포함'}
             </div>
           )}
         </div>
@@ -864,7 +863,9 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
   if (!open) return null;
 
-  const canSubmit = name.trim() && phone.trim() && address.trim();
+  const phoneDigits = phone.replace(/[^0-9]/g, '');
+  const phoneValid = phoneDigits.length >= 9 && phoneDigits.length <= 11;
+  const canSubmit = name.trim() && phone.trim() && phoneValid && address.trim();
 
   // 조기예약 할인 vs 입주모임 할인 절약 금액 분리 (priceFor가 가산식이라 정확히 분리됨)
   const earlySavings = cartEntries.reduce((s, e) => {
@@ -901,18 +902,24 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                       {CAT_BY_ID[it.product.category].label} · {it.product.name}
                       {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
                     </span>
-                    <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.lineTotal)}</span>
+                    <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
                   </div>
                 ))}
+                {installFeeTotal > 0 && (
+                  <div className="flex justify-between text-xs px-2.5 py-2 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
+                    <span>배송·조립·설치비</span>
+                    <span className="idn-mono font-bold">{won(installFeeTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-bold px-2.5 py-2 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
                   <span>합계</span>
                   <span className="idn-display">{won(total)}</span>
                 </div>
-                <div className="px-2.5 py-1.5 text-[10px] border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
-                  {installIncluded
-                    ? installFeeTotal > 0 ? `배송·조립·설치비 ${won(installFeeTotal)} 포함된 가격이에요` : '배송 포함된 가격이에요'
-                    : '조립설치 미포함 — 가구만 받고 직접 조립해요'}
-                </div>
+                {!installIncluded && (
+                  <div className="px-2.5 py-1.5 text-[10px] border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
+                    조립설치 미포함 — 가구만 받고 직접 조립해요
+                  </div>
+                )}
               </div>
               <details className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
                 <summary className="px-2.5 py-2 font-bold cursor-pointer" style={{ color: 'var(--ink)' }}>
@@ -964,7 +971,10 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                     <Phone size={13} /> 연락처
                   </label>
                   <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000"
-                    className="w-full border px-3 py-2 text-sm idn-mono" style={{ borderColor: 'var(--line)' }} />
+                    className="w-full border px-3 py-2 text-sm idn-mono" style={{ borderColor: phoneDigits && !phoneValid ? 'var(--stamp)' : 'var(--line)' }} />
+                  {phoneDigits && !phoneValid && (
+                    <div className="text-[11px] mt-1" style={{ color: 'var(--stamp)' }}>전화번호를 다시 확인해주세요</div>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-bold flex items-center gap-1 mb-1" style={{ color: 'var(--ink)' }}>
@@ -2109,7 +2119,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
 }
 
 export default function App() {
-  const [view, setView] = useState('shop');
+  const [view, setView] = useState(() => (window.location.pathname.startsWith('/admin') ? 'admin' : 'shop'));
   const [products, setProducts] = useState(SEED_PRODUCTS);
   const [reservations, setReservations] = useState([]);
   const [earlyBirdDays, setEarlyBirdDays] = useState(EARLYBIRD_DAYS_DEFAULT);
@@ -2123,6 +2133,17 @@ export default function App() {
   const [referralAgent] = useState(() => captureReferralAgent());
   const [loaded, setLoaded] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+
+  // URL 경로(/admin)와 view 상태를 동기화 — 화면엔 ADMIN 탭을 따로 노출하지 않고, 직접 주소로 들어와야만 접근 가능
+  useEffect(() => {
+    const wantsAdminPath = view === 'admin';
+    const isAdminPath = window.location.pathname.startsWith('/admin');
+    if (wantsAdminPath && !isAdminPath) {
+      window.history.pushState({}, '', '/admin');
+    } else if (!wantsAdminPath && isAdminPath) {
+      window.history.pushState({}, '', '/');
+    }
+  }, [view]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2188,12 +2209,11 @@ export default function App() {
             <div className="idn-mono text-[10px] opacity-60 mt-1">합리적인 가구 쇼핑</div>
           </div>
           <div className="flex items-center gap-4 idn-mono text-xs font-bold">
-            <button onClick={() => setView('shop')} className="pb-0.5" style={{ borderBottom: view === 'shop' ? '2px solid #fff' : '2px solid transparent', opacity: view === 'shop' ? 1 : 0.45 }}>
-              SHOP
-            </button>
-            <button onClick={() => setView('admin')} className="pb-0.5" style={{ borderBottom: view === 'admin' ? '2px solid #fff' : '2px solid transparent', opacity: view === 'admin' ? 1 : 0.45 }}>
-              ADMIN
-            </button>
+            {view === 'admin' && (
+              <button onClick={() => setView('shop')} className="pb-0.5 flex items-center gap-1" style={{ opacity: 0.7 }}>
+                <ArrowLeft size={12} /> 손님화면으로
+              </button>
+            )}
           </div>
         </div>
       </div>

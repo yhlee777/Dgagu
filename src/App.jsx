@@ -5,7 +5,7 @@ import {
   Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList, Package,
   Phone, User, MapPin, ArrowLeft, LayoutGrid, Wallet,
   Users, Trophy, BadgePercent, Ruler, Layers,
-  ChevronLeft, ChevronRight, Lock, Search,
+  ChevronLeft, ChevronRight, Lock, Search, Check,
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { resizeImage } from './lib/resizeImage';
@@ -275,27 +275,83 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
 function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, onAddAll }) {
   const name = packageNameFromRoomState(roomHas);
   const catIds = Object.keys(packageCategoriesFromRoomState(roomHas));
-  const items = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
-  if (items.length === 0) return null;
+  const defaultItems = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
+
+  // catId -> 선택된 productId (초기값은 기본 추천 상품)
+  const [selected, setSelected] = useState(() =>
+    Object.fromEntries(defaultItems.map((p) => [p.category, p.id]))
+  );
+  const [openCat, setOpenCat] = useState(null); // 지금 "변경" 펼쳐진 카테고리
+
+  // roomHas가 바뀌면(방 진단 다시 하면) 선택도 기본값으로 리셋
+  useEffect(() => {
+    setSelected(Object.fromEntries(defaultItems.map((p) => [p.category, p.id])));
+    setOpenCat(null);
+  }, [catIds.join(',')]);
+
+  if (defaultItems.length === 0) return null;
+
+  const items = catIds
+    .map((catId) => products.find((p) => p.id === selected[catId]) || defaultProductForCategory(products, catId))
+    .filter(Boolean);
   const total = items.reduce((s, p) => s + priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount), 0);
+
   return (
     <div className="border-2" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
       <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
         <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
-        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>고민 없이 바로 담기</span>
+        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>마음에 안 들면 바꿔보세요</span>
       </div>
       <div className="px-3 py-2.5">
         <div className="space-y-1.5 mb-2">
           {items.map((p) => {
             const Icon = CAT_BY_ID[p.category].icon;
+            const alternatives = products.filter((alt) => alt.category === p.category);
+            const isOpen = openCat === p.category;
             return (
-              <div key={p.id} className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5" style={{ color: 'var(--ink)', opacity: 0.75 }}>
-                  <Icon size={13} /> {p.name}
-                </span>
-                <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>
-                  {won(priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount))}
-                </span>
+              <div key={p.category}>
+                <div className="flex items-center justify-between text-xs gap-2">
+                  <span className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--ink)', opacity: 0.75 }}>
+                    <Icon size={13} className="flex-shrink-0" />
+                    <span className="truncate">{p.name}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>
+                      {won(priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount))}
+                    </span>
+                    {alternatives.length > 1 && (
+                      <button
+                        onClick={() => setOpenCat(isOpen ? null : p.category)}
+                        className="text-[10px] font-bold px-1.5 py-0.5 border"
+                        style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}
+                      >
+                        {isOpen ? '닫기' : '변경'}
+                      </button>
+                    )}
+                  </span>
+                </div>
+                {isOpen && (
+                  <div className="mt-1 mb-1.5 ml-4 space-y-1 border-l pl-2" style={{ borderColor: 'var(--line)' }}>
+                    {alternatives.map((alt) => {
+                      const active = alt.id === p.id;
+                      return (
+                        <button
+                          key={alt.id}
+                          onClick={() => { setSelected((s) => ({ ...s, [p.category]: alt.id })); setOpenCat(null); }}
+                          className="w-full flex items-center justify-between text-[11px] py-1"
+                          style={{ color: 'var(--ink)', opacity: active ? 1 : 0.6 }}
+                        >
+                          <span className="flex items-center gap-1">
+                            {active && <Check size={11} />} {alt.name}
+                          </span>
+                          <span className="idn-mono font-bold">
+                            {won(priceFor(alt, earlyBird, regionDiscount, earlyBirdDiscount))}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

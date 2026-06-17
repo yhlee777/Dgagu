@@ -1282,6 +1282,24 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       </div>
 
       <div className="px-4 mt-3 space-y-3">
+        <div className="flex items-center justify-between border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+          <div>
+            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 서비스</div>
+            <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              {installIncluded ? '입주일에 설치까지 끝난 상태로 받아요' : '가구만 받고 직접 조립해요'}
+            </div>
+          </div>
+          <button
+            onClick={() => setInstallIncluded((v) => !v)}
+            className="w-12 h-7 rounded-full flex-shrink-0 relative border transition-colors"
+            style={{ background: installIncluded ? 'var(--ink)' : 'var(--bg)', borderColor: 'var(--ink)' }}
+          >
+            <span
+              className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform"
+              style={{ background: installIncluded ? '#fff' : 'var(--ink)', transform: installIncluded ? 'translateX(20px)' : 'translateX(0)' }}
+            />
+          </button>
+        </div>
         <PackageCard
           products={products}
           roomHas={roomHas}
@@ -1293,24 +1311,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           onViewDetail={(pid) => setDetailId(pid)}
         />
         <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
-        <div className="flex items-center justify-between border px-3 py-2.5" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-          <div>
-            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 서비스</div>
-            <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              {installIncluded ? '입주일에 설치까지 끝난 상태로 받아요' : '가구만 받고 직접 조립해요'}
-            </div>
-          </div>
-          <button
-            onClick={() => setInstallIncluded((v) => !v)}
-            className="w-11 h-6 rounded-full flex-shrink-0 relative transition-colors"
-            style={{ background: installIncluded ? 'var(--ink)' : 'var(--line)' }}
-          >
-            <span
-              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-              style={{ transform: installIncluded ? 'translateX(22px)' : 'translateX(2px)' }}
-            />
-          </button>
-        </div>
       </div>
 
       <div className="px-4 mt-5">

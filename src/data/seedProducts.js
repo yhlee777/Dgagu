@@ -6,6 +6,7 @@ export function makeProduct(o) {
     rating: 4.5, reviews: 1000,
     desc: '', detail: '', dims: '', material: '', images: ['', '', '', ''], reviewNote: '', highlights: [],
     package: 'starter', // 'starter' | 'sleep' | 'full' — 방 상태별 패키지 추천에 사용
+    needsInstall: true, installFee: 15000, // 조립이 필요 없는 카테고리(매트리스/의자/행거)는 호출부에서 false로 덮어써요
     ...o,
   };
 }
@@ -50,19 +51,19 @@ export const SEED_PRODUCTS = [
     highlights: ['서랍 2단 내장', '별도 수납장 불필요', '우드톤 통일감'] }),
 
   // ── 매트리스 — 3종, 단색 ──────────────────────────────────────────
-  makeProduct({ category: 'mattress', name: '토퍼 매트리스', basePrice: 59000, cost: 27000,
+  makeProduct({ category: 'mattress', name: '토퍼 매트리스', basePrice: 59000, cost: 27000, needsInstall: false,
     desc: '풀옵션 침대 위에 얹는 얇은 토퍼, 체감 차이는 확실해요',
     detail: '이미 매트리스가 있는 방이라도, 누군가 쓰던 매트리스에 그대로 눕긴 꺼려지죠. 얇지만 새 토퍼 하나로 잠자리 체감이 확실히 달라져요.',
     dims: 'W1100×L2000×H50mm (슈퍼싱글)', material: '메모리폼 + 커버 분리세탁 가능',
     reviewNote: '두께는 얇아도 새 토퍼로 바꾸니 잠자리가 훨씬 낫다는 평이 많아요. 커버를 분리해서 세탁할 수 있는 점도 좋다는 의견이 많고요.',
     highlights: ['풀옵션 매트리스 위에 바로', '얇아도 체감 확실', '커버 분리세탁 가능'] }),
-  makeProduct({ category: 'mattress', name: '기본 매트리스', basePrice: 109000, cost: 49000,
+  makeProduct({ category: 'mattress', name: '기본 매트리스', basePrice: 109000, cost: 49000, needsInstall: false,
     desc: '독립 스프링이라 옆사람 뒤척임이 덜 느껴져요',
     detail: '스프링이 따로따로 움직여서 옆 사람이 뒤척여도 덜 흔들려요. 자취 첫 매트리스로 무난한 두께예요.',
     dims: 'W1100×L2000×H200mm (슈퍼싱글)', material: '독립 포켓스프링 + 패딩 커버',
     reviewNote: '독립스프링 매트리스는 진동이 덜 전달되고 몸의 곡선을 잘 받쳐준다는 평이 많아요. 자취생도 많이 선택하는 두께예요.',
     highlights: ['독립 스프링 방진동', '자취 첫 매트리스로 무난', '적당한 두께감'] }),
-  makeProduct({ category: 'mattress', name: '업그레이드 매트리스', basePrice: 179000, cost: 82000,
+  makeProduct({ category: 'mattress', name: '업그레이드 매트리스', basePrice: 179000, cost: 82000, needsInstall: false,
     desc: '독립스프링 + 메모리폼 토퍼로 한 단계 더 푹신해요',
     detail: '독립 포켓스프링 위에 메모리폼 토퍼가 더해져서 한 단계 더 푹신한 느낌이에요. 잠자리에 신경 쓰고 싶은 분께 추천해요.',
     dims: 'W1100×L2000×H250mm (슈퍼싱글)', material: '독립 포켓스프링 + 메모리폼 토퍼',
@@ -96,13 +97,13 @@ export const SEED_PRODUCTS = [
     highlights: ['하단 서랍 2개 내장', '옷장 공간 부담 감소', '우드톤 통일감'] }),
 
   // ── 의자 — 2종, 단색 ──────────────────────────────────────────────
-  makeProduct({ category: 'chair', name: '기본 의자', basePrice: 44000, cost: 20000,
+  makeProduct({ category: 'chair', name: '기본 의자', basePrice: 44000, cost: 20000, installFee: 8000,
     desc: '바퀴 없이 안정적인 학습용 의자예요',
     detail: '바퀴가 없어 흔들림이 적고, 좁은 책상 밑에 깔끔하게 들어가요. 풀옵션 책상에 의자가 없거나 너무 부실할 때 바로 바꾸기 좋아요.',
     dims: 'W550×D550×H950~1020mm', material: '메쉬 + 스틸 프레임',
     reviewNote: '바퀴 없는 의자는 흔들림이 적고 좁은 책상 밑에도 잘 들어간다는 평이 많아요. 가격 대비 튼튼하다는 후기도 많고요.',
     highlights: ['바퀴 없는 안정형', '좁은 책상 밑 수납', '가성비 좋은 기본형'] }),
-  makeProduct({ category: 'chair', name: '메쉬 업그레이드 의자', basePrice: 89000, cost: 41000,
+  makeProduct({ category: 'chair', name: '메쉬 업그레이드 의자', basePrice: 89000, cost: 41000, installFee: 8000,
     desc: '허리 받침과 팔걸이 조절까지 되는 업그레이드형',
     detail: '허리 받침이 도드라지고 팔걸이 높이도 조절돼서 장시간 앉아도 편안해요. 책상 앞에 오래 있는 분께 추천해요.',
     dims: 'W620×D620×H1000~1080mm', material: '메쉬 + 나일론 다리',
@@ -110,7 +111,7 @@ export const SEED_PRODUCTS = [
     highlights: ['통풍 잘 되는 메쉬', '허리 받침 + 팔걸이 조절', '장시간 착석에 강함'] }),
 
   // ── 행거 — 1종 ────────────────────────────────────────────────────
-  makeProduct({ category: 'hanger', name: '스탠드 행거', basePrice: 29000, cost: 13000,
+  makeProduct({ category: 'hanger', name: '스탠드 행거', basePrice: 29000, cost: 13000, needsInstall: false,
     desc: '풀옵션 옷장이 부족할 때 바로 추가하는 행거',
     detail: '기둥이 굵은 편이라 무거운 외투를 걸어도 잘 휘지 않아요. 옷장 수납이 부족한 방에 바로 추가하기 좋아요.',
     dims: 'W1200×D500×H1700mm', material: '스틸 (32mm 파이프)',

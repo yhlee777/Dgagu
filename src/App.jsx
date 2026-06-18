@@ -162,12 +162,6 @@ function captureReferralAgent() {
 function reviewLabel(n) {
   return n >= 9999 ? '9,999+' : n.toLocaleString('ko-KR');
 }
-function purchaseCount(reservations, productId) {
-  return reservations.reduce((sum, r) => {
-    const item = r.items.find((it) => it.product.id === productId);
-    return sum + (item ? item.qty : 0);
-  }, 0);
-}
 /* ---------------------------------------------------------------------- */
 /* small shared bits                                                       */
 /* ---------------------------------------------------------------------- */
@@ -328,7 +322,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
           <button
             key={t.key}
             onClick={() => setTier(t.key)}
-            className="py-2 text-xs font-bold"
+            className="py-2 text-xs font-bold relative"
             style={{
               background: tier === t.key ? 'var(--ink)' : 'var(--surface)',
               color: tier === t.key ? '#fff' : 'var(--ink)',
@@ -336,6 +330,9 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
             }}
           >
             {t.label}
+            {tier === t.key && (
+              <span className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: 'var(--gold)' }} />
+            )}
           </button>
         ))}
       </div>
@@ -352,6 +349,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
             const Icon = CAT_BY_ID[p.category].icon;
             const alternatives = products.filter((alt) => alt.category === p.category);
             const isOpen = openCat === p.category;
+            const thumb = p.images?.[0];
             return (
               <div key={p.category}>
                 <div className="flex items-center justify-between text-xs gap-2">
@@ -360,7 +358,12 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                     className="flex items-center gap-1.5 min-w-0 text-left"
                     style={{ color: 'var(--ink)', opacity: 0.75 }}
                   >
-                    <Icon size={13} className="flex-shrink-0" />
+                    <span className="flex-shrink-0 w-8 h-8 border overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
+                      {thumb
+                        ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+                        : <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.4 }} />
+                      }
+                    </span>
                     <span className="truncate underline" style={{ textDecorationColor: 'var(--line)' }}>{p.name}</span>
                   </button>
                   <span className="flex items-center gap-1.5 flex-shrink-0">
@@ -682,9 +685,10 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, qtyInCart, cart, reservations, onUpdateCart, onBack, onSelectProduct }) {
+function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct }) {
+  const filledImageIdx = (product.images || []).reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
-  const [activeImg, setActiveImg] = useState(0);
+  const [activeImg, setActiveImg] = useState(filledImageIdx[0] ?? 0);
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
   const Icon = CAT_BY_ID[product.category].icon;
@@ -694,7 +698,6 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
   const related = allProducts.filter((p) => p.category === product.category && p.id !== product.id);
-  const bought = purchaseCount(reservations, product.id);
 
   function commit(newQty) {
     onUpdateCart(product.id, newQty);
@@ -729,29 +732,21 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
         </span>
       </div>
 
-      {/* thumbnails — 단독 / 공간연출 / 각도 / 디테일 */}
-      <div className="flex gap-1.5 px-4 pt-2 pb-1">
-        {IMAGE_SLOTS.map((slot, i) => {
-          const active = activeImg === i;
-          const has = !!product.images?.[i];
-          return (
-            <button key={i} onClick={() => setActiveImg(i)} className="flex-1 min-w-0 text-left">
-              <div className="w-full aspect-square overflow-hidden" style={{ border: active ? '2px solid var(--ink)' : '1px solid var(--line)' }}>
-                {has ? (
+      {/* thumbnails — 실제로 사진이 있는 슬롯만 보여줘요 */}
+      {filledImageIdx.length > 1 && (
+        <div className="flex gap-1.5 px-4 pt-2 pb-1">
+          {filledImageIdx.map((i) => {
+            const active = activeImg === i;
+            return (
+              <button key={i} onClick={() => setActiveImg(i)} className="flex-1 min-w-0 text-left">
+                <div className="w-full aspect-square overflow-hidden" style={{ border: active ? '2px solid var(--ink)' : '1px solid var(--line)' }}>
                   <img src={product.images[i]} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="idn-hatch w-full h-full flex items-center justify-center">
-                    <ImagePlus size={14} style={{ color: 'var(--ink)', opacity: 0.25 }} />
-                  </div>
-                )}
-              </div>
-              <div className="idn-mono text-[9px] text-center mt-1 leading-tight truncate" style={{ color: 'var(--ink)', opacity: active ? 0.85 : 0.4, fontWeight: active ? 700 : 400 }}>
-                {slot.label}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* title */}
       <div className="px-4 pt-3">
@@ -760,7 +755,6 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
           <Star size={12} fill="currentColor" />
           <span>{product.rating.toFixed(1)}</span>
           <span>· 리뷰 {reviewLabel(product.reviews)}개</span>
-          {bought > 0 && <span>· 누적구매 {bought}개</span>}
         </div>
       </div>
 
@@ -1251,7 +1245,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         installIncluded={installIncluded}
         qtyInCart={cart[detailProduct.id] || 0}
         cart={cart}
-        reservations={reservations}
         onUpdateCart={updateCart}
         onBack={() => setDetailId(null)}
         onSelectProduct={(pid) => setDetailId(pid)}

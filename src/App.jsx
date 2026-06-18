@@ -119,6 +119,28 @@ function buildReservationMessage(r) {
   lines.push('입주일에 깔끔하게 완성된 방으로 맞이하실 수 있도록 준비할게요!');
   return lines.join('\n');
 }
+
+const KAKAO_JS_KEY = '32e312d09ea47268d6755d9bcb73bf1d';
+function initKakao() {
+  if (!window.Kakao) return false;
+  if (!window.Kakao.isInitialized()) window.Kakao.init(KAKAO_JS_KEY);
+  return true;
+}
+function shareKakao({ name, moveInDate, total, items = [] }) {
+  if (!initKakao()) { alert('카카오톡 공유를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+  const itemDesc = items.slice(0, 3).map((it) => it.product?.name || '').filter(Boolean).join(', ')
+    + (items.length > 3 ? ` 외 ${items.length - 3}개` : '');
+  window.Kakao.Share.sendDefault({
+    objectType: 'feed',
+    content: {
+      title: `D가구 예약 완료 — ${name}님`,
+      description: `입주일 ${moveInDate || '미정'} · ${itemDesc}\n총 ${won(total)}\n\n링크를 눌러 D가구로 다시 들어오세요`,
+      imageUrl: 'https://dgagu.vercel.app/og-image.png',
+      link: { mobileWebUrl: 'https://dgagu.vercel.app', webUrl: 'https://dgagu.vercel.app' },
+    },
+    buttons: [{ title: 'D가구 바로가기', link: { mobileWebUrl: 'https://dgagu.vercel.app', webUrl: 'https://dgagu.vercel.app' } }],
+  });
+}
 // 카카오/다음 우편번호 검색 팝업 — 별도 API 키 없이 사용 가능
 function openAddressSearch(onComplete) {
   function open() {
@@ -1107,9 +1129,22 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
             <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.7 }}>
               입주일에 맞춰 최저가로 준비해서<br />보내드릴게요.
             </p>
+            <p className="text-xs mt-3 mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              카카오톡으로 예약 내역을 저장해두세요<br />나중에 링크를 눌러 다시 들어올 수 있어요
+            </p>
+            <button
+              onClick={() => shareKakao({ name, moveInDate, total, items: cartEntries })}
+              className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1"
+              style={{ background: '#FEE500', color: '#191919' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path fillRule="evenodd" clipRule="evenodd" d="M9 1.5C4.86 1.5 1.5 4.2 1.5 7.5c0 2.07 1.23 3.9 3.09 4.98L3.75 15l3.3-1.71C7.65 13.41 8.31 13.5 9 13.5c4.14 0 7.5-2.7 7.5-6S13.14 1.5 9 1.5z" fill="#191919"/>
+              </svg>
+              카카오톡으로 예약 내역 받기
+            </button>
             <CopyMessageButton
               text={buildReservationMessage({ name, moveInDate, items: cartEntries, total })}
-              label="고객님께 보낼 카톡 문구 복사하기"
+              label="문구 복사해서 직접 보내기"
             />
             <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
               확인

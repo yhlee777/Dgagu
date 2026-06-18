@@ -290,9 +290,11 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
   );
 }
 
-function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, installIncluded, packageImage, onAddAll, onViewDetail }) {
-  const name = packageNameFromRoomState(roomHas);
-  const catIds = Object.keys(packageCategoriesFromRoomState(roomHas));
+function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, installIncluded, packageImages, onAddAll, onViewDetail }) {
+  const [tier, setTier] = useState('basic'); // 'basic' | 'full'
+  const name = packageNameFromRoomState(roomHas, tier);
+  const packageImage = packageImages?.[packageKeyFromRoomState(roomHas, tier)];
+  const catIds = Object.keys(packageCategoriesFromRoomState(roomHas, tier));
   const defaultItems = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
 
   // catId -> 선택된 productId (초기값은 기본 추천 상품)
@@ -302,12 +304,12 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
   const [openCat, setOpenCat] = useState(null); // 지금 "변경" 펼쳐진 카테고리
   const [removedCats, setRemovedCats] = useState(() => new Set()); // 패키지에서 뺀 카테고리
 
-  // roomHas가 바뀌면(방 진단 다시 하면) 선택/제외 둘 다 기본값으로 리셋
+  // roomHas나 tier가 바뀌면 선택/제외 둘 다 기본값으로 리셋
   useEffect(() => {
     setSelected(Object.fromEntries(defaultItems.map((p) => [p.category, p.id])));
     setOpenCat(null);
     setRemovedCats(new Set());
-  }, [catIds.join(',')]);
+  }, [catIds.join(','), tier]);
 
   if (defaultItems.length === 0) return null;
 
@@ -321,6 +323,22 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
 
   return (
     <div className="border-2" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+      <div className="grid grid-cols-2" style={{ borderBottom: '2px solid var(--ink)' }}>
+        {[{ key: 'basic', label: '자취 기본세팅' }, { key: 'full', label: '자취 풀세팅' }].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTier(t.key)}
+            className="py-2 text-xs font-bold"
+            style={{
+              background: tier === t.key ? 'var(--ink)' : 'var(--surface)',
+              color: tier === t.key ? '#fff' : 'var(--ink)',
+              opacity: tier === t.key ? 1 : 0.55,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
       {packageImage && (
         <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-44 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
       )}
@@ -1113,28 +1131,33 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 /* shop view                                                               */
 /* ---------------------------------------------------------------------- */
 
-function packageCategoriesFromRoomState(roomHas) {
-  const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
-  if (allHave) return { mattress: true }; // 새 잠자리 세트 — 풀옵션 방, 토퍼/매트리스만
+// 기본세팅: 없는 것만 채움 (행거는 옷장이 있을 때만 보조로 추천, 둘 다 자동추천하진 않음)
+function basicCategoriesFromRoomState(roomHas) {
   const cats = {};
   if (!roomHas.bedframe) { cats.bedframe = true; cats.mattress = true; }
   if (!roomHas.desk) { cats.desk = true; cats.chair = true; }
-  if (!roomHas.wardrobe) { cats.wardrobe = true; cats.hanger = true; }
+  if (!roomHas.wardrobe) { cats.wardrobe = true; }
+  if (roomHas.bedframe && roomHas.desk && roomHas.wardrobe) cats.mattress = true; // 다 있으면 새 잠자리(매트리스)만
   return cats;
 }
-function packageNameFromRoomState(roomHas) {
+// 풀세팅: 방 전체를 구성 — 행거는 빼고(옷장과 중복) 프레임·매트리스·책상·의자·옷장만
+function fullCategoriesFromRoomState() {
+  return { bedframe: true, mattress: true, desk: true, chair: true, wardrobe: true };
+}
+function packageCategoriesFromRoomState(roomHas, tier = 'basic') {
+  return tier === 'full' ? fullCategoriesFromRoomState() : basicCategoriesFromRoomState(roomHas);
+}
+function packageNameFromRoomState(roomHas, tier = 'basic') {
+  if (tier === 'full') return '자취 풀세팅';
   const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
-  const noneHave = !roomHas.bedframe && !roomHas.desk && !roomHas.wardrobe;
   if (allHave) return '새 잠자리 세트';
-  if (noneHave) return '빈 방 풀세팅';
-  return '자취 시작 세트';
+  return '자취 기본세팅';
 }
 // 패키지 종류를 가리키는 고정 키 — 관리자에서 등록한 대표사진을 찾을 때 씀
-function packageKeyFromRoomState(roomHas) {
+function packageKeyFromRoomState(roomHas, tier = 'basic') {
+  if (tier === 'full') return 'full';
   const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
-  const noneHave = !roomHas.bedframe && !roomHas.desk && !roomHas.wardrobe;
   if (allHave) return 'sleep';
-  if (noneHave) return 'full';
   return 'starter';
 }
 // 카테고리별 "기본형" 대표 상품 — 고민 없이 우리가 고른 추천 구성
@@ -1420,7 +1443,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           earlyBirdDiscount={earlyBirdDiscount}
           regionDiscount={regionDiscount}
           installIncluded={installIncluded}
-          packageImage={packageImages?.[packageKeyFromRoomState(roomHas)]}
+          packageImages={packageImages}
           onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
           onViewDetail={(pid) => setDetailId(pid)}
         />
@@ -1930,9 +1953,9 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
     }
   }
   const PACKAGE_TYPES = [
-    { key: 'starter', label: '자취 시작 세트' },
+    { key: 'starter', label: '자취 기본세팅' },
     { key: 'sleep', label: '새 잠자리 세트' },
-    { key: 'full', label: '빈 방 풀세팅' },
+    { key: 'full', label: '자취 풀세팅' },
   ];
   return (
     <div className="space-y-3">

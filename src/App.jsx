@@ -120,26 +120,40 @@ function buildReservationMessage(r) {
   return lines.join('\n');
 }
 
+const SITE_URL = 'https://dgagu.com';
 const KAKAO_JS_KEY = '32e312d09ea47268d6755d9bcb73bf1d';
 function initKakao() {
   if (!window.Kakao) return false;
-  if (!window.Kakao.isInitialized()) window.Kakao.init(KAKAO_JS_KEY);
-  return true;
+  try {
+    if (!window.Kakao.isInitialized()) window.Kakao.init(KAKAO_JS_KEY);
+    return true;
+  } catch (e) {
+    console.error('Kakao init failed', e);
+    return false;
+  }
 }
 function shareKakao({ name, moveInDate, total, items = [] }) {
-  if (!initKakao()) { alert('카카오톡 공유를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+  if (!initKakao()) {
+    alert('카카오톡 공유를 불러오는 중이에요. 잠시 후 다시 눌러주세요.');
+    return;
+  }
   const itemDesc = items.slice(0, 3).map((it) => it.product?.name || '').filter(Boolean).join(', ')
     + (items.length > 3 ? ` 외 ${items.length - 3}개` : '');
-  window.Kakao.Share.sendDefault({
-    objectType: 'feed',
-    content: {
-      title: `D가구 예약 완료 — ${name}님`,
-      description: `입주일 ${moveInDate || '미정'} · ${itemDesc}\n총 ${won(total)}\n\n링크를 눌러 D가구로 다시 들어오세요`,
-      imageUrl: 'https://dgagu.vercel.app/og-image.png',
-      link: { mobileWebUrl: 'https://dgagu.vercel.app', webUrl: 'https://dgagu.vercel.app' },
-    },
-    buttons: [{ title: 'D가구 바로가기', link: { mobileWebUrl: 'https://dgagu.vercel.app', webUrl: 'https://dgagu.vercel.app' } }],
-  });
+  try {
+    window.Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `D가구 예약 완료 — ${name}님`,
+        description: `입주일 ${moveInDate || '미정'} · ${itemDesc}\n총 ${won(total)}\n\n링크를 눌러 D가구로 다시 들어오세요`,
+        imageUrl: `${SITE_URL}/og-image.png`,
+        link: { mobileWebUrl: SITE_URL, webUrl: SITE_URL },
+      },
+      buttons: [{ title: 'D가구 바로가기', link: { mobileWebUrl: SITE_URL, webUrl: SITE_URL } }],
+    });
+  } catch (e) {
+    console.error('Kakao share failed', e);
+    alert('카카오톡 공유 중 오류가 발생했어요. 카카오 디벨로퍼스에서 dgagu.com 도메인이 등록됐는지 확인해주세요.');
+  }
 }
 // 카카오/다음 우편번호 검색 팝업 — 별도 API 키 없이 사용 가능
 function openAddressSearch(onComplete) {

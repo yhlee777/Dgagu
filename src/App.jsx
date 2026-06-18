@@ -300,16 +300,19 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
     Object.fromEntries(defaultItems.map((p) => [p.category, p.id]))
   );
   const [openCat, setOpenCat] = useState(null); // 지금 "변경" 펼쳐진 카테고리
+  const [removedCats, setRemovedCats] = useState(() => new Set()); // 패키지에서 뺀 카테고리
 
-  // roomHas가 바뀌면(방 진단 다시 하면) 선택도 기본값으로 리셋
+  // roomHas가 바뀌면(방 진단 다시 하면) 선택/제외 둘 다 기본값으로 리셋
   useEffect(() => {
     setSelected(Object.fromEntries(defaultItems.map((p) => [p.category, p.id])));
     setOpenCat(null);
+    setRemovedCats(new Set());
   }, [catIds.join(',')]);
 
   if (defaultItems.length === 0) return null;
 
   const items = catIds
+    .filter((catId) => !removedCats.has(catId))
     .map((catId) => products.find((p) => p.id === selected[catId]) || defaultProductForCategory(products, catId))
     .filter(Boolean);
   const goodsTotal = items.reduce((s, p) => s + priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount), 0);
@@ -355,6 +358,14 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                         {isOpen ? '닫기' : '변경'}
                       </button>
                     )}
+                    <button
+                      onClick={() => { setRemovedCats((s) => new Set(s).add(p.category)); setOpenCat(null); }}
+                      className="p-0.5"
+                      style={{ color: 'var(--ink)', opacity: 0.4 }}
+                      aria-label="이 항목 빼기"
+                    >
+                      <X size={14} />
+                    </button>
                   </span>
                 </div>
                 {p.needsInstall && (
@@ -386,18 +397,43 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
               </div>
             );
           })}
+          {removedCats.size > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              {[...removedCats].map((catId) => {
+                const cat = CAT_BY_ID[catId];
+                return (
+                  <button
+                    key={catId}
+                    onClick={() => setRemovedCats((s) => { const next = new Set(s); next.delete(catId); return next; })}
+                    className="text-[10px] px-1.5 py-0.5 border flex items-center gap-1"
+                    style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}
+                  >
+                    + {cat?.label || catId} 다시 담기
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div className="flex items-center justify-between pt-2 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
-          <span>합계 {installIncluded && <span className="text-[10px] font-normal" style={{ opacity: 0.5 }}>(배송·조립·설치 포함)</span>}</span>
-          <span className="idn-display">{won(total)}</span>
-        </div>
-        <button
-          onClick={() => onAddAll(items)}
-          className="w-full py-2.5 font-bold text-sm"
-          style={{ background: 'var(--ink)', color: '#fff' }}
-        >
-          이 구성 한번에 담기
-        </button>
+        {items.length === 0 ? (
+          <div className="text-center text-xs py-4" style={{ color: 'var(--ink)', opacity: 0.4 }}>
+            구성품을 모두 뺐어요 — 위에서 다시 담을 수 있어요
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between pt-2 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+              <span>합계 {installIncluded && <span className="text-[10px] font-normal" style={{ opacity: 0.5 }}>(배송·조립·설치 포함)</span>}</span>
+              <span className="idn-display">{won(total)}</span>
+            </div>
+            <button
+              onClick={() => onAddAll(items)}
+              className="w-full py-2.5 font-bold text-sm"
+              style={{ background: 'var(--ink)', color: '#fff' }}
+            >
+              이 구성 한번에 담기
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

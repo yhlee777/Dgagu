@@ -24,3 +24,14 @@ export function resizeImage(file, maxDim = 1000, quality = 0.75) {
     reader.readAsDataURL(file);
   });
 }
+
+// 캔버스 재인코딩 없이 파일을 그대로 data URL로 읽어요 — 글자가 작은 도면/설명 이미지처럼
+// 한 번이라도 재압축하면 흐려지는 이미지에 사용하세요. 용량은 원본 그대로라 더 커요.
+export function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}

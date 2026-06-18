@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, Lock, Search, Check,
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
-import { resizeImage } from './lib/resizeImage';
+import { resizeImage, readFileAsDataURL } from './lib/resizeImage';
 import { SEED_PRODUCTS, makeProduct } from './data/seedProducts';
 
 /* ---------------------------------------------------------------------- */
@@ -1515,11 +1515,11 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     try {
-      // 치수도면·설명컷은 글자가 많아서 일반 사진보다 해상도/화질을 높게 유지해요
-      const resized = await Promise.all(files.map((f) => resizeImage(f, 1600, 0.92)));
-      setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...resized] }));
+      // 치수도면·설명컷은 글자가 작아서 재압축하면 흐려져요 — 원본 그대로 저장
+      const loaded = await Promise.all(files.map((f) => readFileAsDataURL(f)));
+      setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...loaded] }));
     } catch (err) {
-      console.error('detail image resize failed', err);
+      console.error('detail image load failed', err);
     }
     e.target.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
   }
@@ -1618,7 +1618,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         <div className="col-span-2">
           <label className={labelCls} style={{ color: 'var(--ink)' }}>설명 이미지 (치수도면·특징컷 등, 여러 장)</label>
           <p className="text-[11px] mb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            도매상이 준 상세페이지 이미지를 여러 장 한꺼번에 올리면, 상세페이지 설명 아래에 순서대로 쭉 보여줘요.
+            도매상이 준 상세페이지 이미지를 여러 장 한꺼번에 올리면, 상세페이지 설명 아래에 순서대로 쭉 보여줘요. 화질 보존을 위해 원본 그대로 저장해서, 파일이 너무 크면(10MB 이상) 페이지가 무거워질 수 있어요.
           </p>
           <input type="file" accept="image/*" multiple onChange={handleDetailImageFiles} className="w-full text-[11px] mb-2" style={{ color: 'var(--ink)' }} />
           {form.detailImages.length > 0 && (

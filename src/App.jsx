@@ -1515,7 +1515,8 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     try {
-      const resized = await Promise.all(files.map((f) => resizeImage(f)));
+      // 치수도면·설명컷은 글자가 많아서 일반 사진보다 해상도/화질을 높게 유지해요
+      const resized = await Promise.all(files.map((f) => resizeImage(f, 1600, 0.92)));
       setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...resized] }));
     } catch (err) {
       console.error('detail image resize failed', err);

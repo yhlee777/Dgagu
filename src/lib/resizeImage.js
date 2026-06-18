@@ -1,4 +1,5 @@
 // 업로드한 사진을 캔버스로 리사이즈/압축 — DB·전송 용량을 줄여줘요.
+// 글자가 많은 설명/치수도면 이미지는 maxDim/quality를 높여서(예: 1600, 0.92) 화질 저하를 줄이세요.
 export function resizeImage(file, maxDim = 1000, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

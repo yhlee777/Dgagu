@@ -26,10 +26,10 @@ const CATEGORIES = [
 const CAT_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
 const IMAGE_SLOTS = [
-  { label: '단독 제품컷', hint: '제품만 깔끔하게 — 대표 이미지로 쓰여요' },
-  { label: '공간 연출컷', hint: '방 안에 배치된 모습을 보여주세요' },
-  { label: '측면 각도',   hint: '옆면이나 비스듬한 각도에서' },
-  { label: '후면·디테일', hint: '뒷면이나 마감·소재 클로즈업' },
+  { label: '사진 1 (대표)', hint: '목록·카드에 보이는 대표 이미지예요' },
+  { label: '사진 2', hint: '추가 사진' },
+  { label: '사진 3', hint: '추가 사진' },
+  { label: '사진 4', hint: '추가 사진' },
 ];
 
 const ROOM_CHECK_ITEMS = [
@@ -100,6 +100,24 @@ function totalDiscountPct(earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) 
 }
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
+}
+// 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
+function buildReservationMessage(r) {
+  const lines = [];
+  lines.push(`[D가구] ${r.name}님, 예약 감사해요 🙏`);
+  lines.push('');
+  lines.push(`입주일: ${r.moveInDate || '미정'}`);
+  lines.push('주문 내역:');
+  (r.items || []).forEach((it) => {
+    const qtyLabel = it.qty > 1 ? ` ×${it.qty}` : '';
+    lines.push(`· ${it.product?.name || ''}${qtyLabel}`);
+  });
+  lines.push('');
+  lines.push(`총 금액: ${won(r.total)}`);
+  lines.push('');
+  lines.push('입주 전날, 설치기사님이 전화로 정확한 방문 시간을 다시 확인드릴게요.');
+  lines.push('입주일에 깔끔하게 완성된 방으로 맞이하실 수 있도록 준비할게요!');
+  return lines.join('\n');
 }
 // 카카오/다음 우편번호 검색 팝업 — 별도 API 키 없이 사용 가능
 function openAddressSearch(onComplete) {
@@ -272,7 +290,7 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
   );
 }
 
-function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, installIncluded, onAddAll, onViewDetail }) {
+function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, installIncluded, packageImage, onAddAll, onViewDetail }) {
   const name = packageNameFromRoomState(roomHas);
   const catIds = Object.keys(packageCategoriesFromRoomState(roomHas));
   const defaultItems = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
@@ -300,6 +318,9 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
 
   return (
     <div className="border-2" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+      {packageImage && (
+        <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-44 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
+      )}
       <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
         <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
         <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>마음에 안 들면 바꿔보세요</span>
@@ -706,7 +727,17 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
             <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.8 }}>{longDesc}</p>
           </Section>
         )}
+      </div>
 
+      {product.detailImages?.length > 0 && (
+        <div className="mt-1 space-y-0">
+          {product.detailImages.map((img, i) => (
+            <img key={i} src={img} alt={`${product.name} 상세 ${i + 1}`} className="w-full block" />
+          ))}
+        </div>
+      )}
+
+      <div className="px-4">
         <Section title="상세 정보">
           <div className="border" style={{ borderColor: 'var(--line)' }}>
             <div className="flex text-xs border-b" style={{ borderColor: 'var(--line)' }}>
@@ -850,6 +881,30 @@ function CartBar({ cartEntries, subtotal, total, savings, installFeeTotal = 0, h
         </div>
       </div>
     </div>
+  );
+}
+
+// 클립보드 복사 버튼 — 카카오톡으로 보낼 메시지 등을 복사할 때 공용으로 사용
+function CopyMessageButton({ text, label, compact = false }) {
+  const [copied, setCopied] = useState(false);
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드 권한이 막힌 환경 — 조용히 무시
+    }
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex items-center justify-center gap-1.5 font-bold border-2 ${compact ? 'mt-2 w-full py-1.5 text-[11px]' : 'mt-4 w-full py-2.5 text-xs'}`}
+      style={{ borderColor: copied ? 'var(--gold)' : 'var(--ink)', color: copied ? 'var(--gold)' : 'var(--ink)' }}
+    >
+      {copied ? <Check size={compact ? 12 : 14} /> : <ClipboardList size={compact ? 12 : 14} />}
+      {copied ? '복사됐어요' : label}
+    </button>
   );
 }
 
@@ -1004,7 +1059,11 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
             <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.7 }}>
               입주일에 맞춰 최저가로 준비해서<br />보내드릴게요.
             </p>
-            <button onClick={handleClose} className="mt-5 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+            <CopyMessageButton
+              text={buildReservationMessage({ name, moveInDate, items: cartEntries, total })}
+              label="고객님께 보낼 카톡 문구 복사하기"
+            />
+            <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
               확인
             </button>
           </div>
@@ -1034,6 +1093,14 @@ function packageNameFromRoomState(roomHas) {
   if (noneHave) return '빈 방 풀세팅';
   return '자취 시작 세트';
 }
+// 패키지 종류를 가리키는 고정 키 — 관리자에서 등록한 대표사진을 찾을 때 씀
+function packageKeyFromRoomState(roomHas) {
+  const allHave = roomHas.bedframe && roomHas.desk && roomHas.wardrobe;
+  const noneHave = !roomHas.bedframe && !roomHas.desk && !roomHas.wardrobe;
+  if (allHave) return 'sleep';
+  if (noneHave) return 'full';
+  return 'starter';
+}
 // 카테고리별 "기본형" 대표 상품 — 고민 없이 우리가 고른 추천 구성
 function defaultProductForCategory(products, catId) {
   const items = products.filter((p) => p.category === catId);
@@ -1041,7 +1108,7 @@ function defaultProductForCategory(products, catId) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, onAddReservation }) {
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, onAddReservation }) {
   const [step, setStep] = useState('room'); // 'room' | 'date' | 'address' | 'shop'
   const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
   const [moveInDate, setMoveInDate] = useState('');
@@ -1317,6 +1384,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           earlyBirdDiscount={earlyBirdDiscount}
           regionDiscount={regionDiscount}
           installIncluded={installIncluded}
+          packageImage={packageImages?.[packageKeyFromRoomState(roomHas)]}
           onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
           onViewDetail={(pid) => setDetailId(pid)}
         />
@@ -1418,6 +1486,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     dims: initial?.dims || '',
     material: initial?.material || '',
     images: initial?.images?.length ? [...initial.images, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
+    detailImages: initial?.detailImages?.length ? [...initial.detailImages] : [],
     needsInstall: initial?.needsInstall ?? true,
     installFee: initial?.installFee ?? 15000,
   }));
@@ -1440,6 +1509,30 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     } catch (err) {
       console.error('image resize failed', err);
     }
+  }
+  // 설명 이미지(치수도면/특징컷 등) — 여러 장, 한 번에 여러 파일 선택 가능
+  async function handleDetailImageFiles(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    try {
+      const resized = await Promise.all(files.map((f) => resizeImage(f)));
+      setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...resized] }));
+    } catch (err) {
+      console.error('detail image resize failed', err);
+    }
+    e.target.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
+  }
+  function removeDetailImage(i) {
+    setForm((f) => ({ ...f, detailImages: f.detailImages.filter((_, idx) => idx !== i) }));
+  }
+  function moveDetailImage(i, dir) {
+    setForm((f) => {
+      const imgs = [...f.detailImages];
+      const j = i + dir;
+      if (j < 0 || j >= imgs.length) return f;
+      [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+      return { ...f, detailImages: imgs };
+    });
   }
   function setHighlight(i, value) {
     setForm((f) => {
@@ -1466,6 +1559,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       dims: form.dims.trim(),
       material: form.material.trim(),
       images: form.images,
+      detailImages: form.detailImages,
       needsInstall: !!form.needsInstall,
       installFee: Number(form.installFee) || 0,
     });
@@ -1488,7 +1582,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         </div>
 
         <div className="col-span-2">
-          <label className={labelCls} style={{ color: 'var(--ink)' }}>상품 사진 4종 (단독 / 공간연출 / 측면 / 후면)</label>
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>상품 사진 4종</label>
           <div className="space-y-2">
             {IMAGE_SLOTS.map((slot, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -1518,6 +1612,33 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="col-span-2">
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>설명 이미지 (치수도면·특징컷 등, 여러 장)</label>
+          <p className="text-[11px] mb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+            도매상이 준 상세페이지 이미지를 여러 장 한꺼번에 올리면, 상세페이지 설명 아래에 순서대로 쭉 보여줘요.
+          </p>
+          <input type="file" accept="image/*" multiple onChange={handleDetailImageFiles} className="w-full text-[11px] mb-2" style={{ color: 'var(--ink)' }} />
+          {form.detailImages.length > 0 && (
+            <div className="space-y-1.5">
+              {form.detailImages.map((img, i) => (
+                <div key={i} className="flex items-center gap-2 border p-1.5" style={{ borderColor: 'var(--line)' }}>
+                  <img src={img} alt="" className="w-12 h-12 object-cover border flex-shrink-0" style={{ borderColor: 'var(--line)' }} />
+                  <span className="flex-1 text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>{i + 1}번째</span>
+                  <button type="button" onClick={() => moveDetailImage(i, -1)} disabled={i === 0} className="p-1.5 border flex-shrink-0 disabled:opacity-20" style={{ borderColor: 'var(--line)' }}>
+                    <ChevronLeft size={13} style={{ color: 'var(--ink)' }} />
+                  </button>
+                  <button type="button" onClick={() => moveDetailImage(i, 1)} disabled={i === form.detailImages.length - 1} className="p-1.5 border flex-shrink-0 disabled:opacity-20" style={{ borderColor: 'var(--line)' }}>
+                    <ChevronRight size={13} style={{ color: 'var(--ink)' }} />
+                  </button>
+                  <button type="button" onClick={() => removeDetailImage(i)} className="p-1.5 border flex-shrink-0" style={{ borderColor: 'var(--line)' }}>
+                    <Trash2 size={13} style={{ color: 'var(--stamp)' }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
@@ -1757,12 +1878,56 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
   );
 }
 
-function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
+function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages }) {
   function updateThreshold(i, field, value) {
     setRegionThresholds((ts) => ts.map((t, idx) => (idx === i ? { ...t, [field]: Number(value) || 0 } : t)));
   }
+  async function handlePackagePhoto(key, e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await resizeImage(file);
+      setPackageImages((p) => ({ ...p, [key]: data }));
+    } catch (err) {
+      console.error('package image resize failed', err);
+    }
+  }
+  const PACKAGE_TYPES = [
+    { key: 'starter', label: '자취 시작 세트' },
+    { key: 'sleep', label: '새 잠자리 세트' },
+    { key: 'full', label: '빈 방 풀세팅' },
+  ];
   return (
     <div className="space-y-3">
+      <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>패키지 대표 사진</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          가구를 다 꾸민 방 사진이에요. 손님이 가구선택 화면에서 추천 패키지 카드 맨 위에 보게 돼요.
+        </p>
+        <div className="space-y-2.5">
+          {PACKAGE_TYPES.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2.5">
+              {packageImages?.[key] ? (
+                <img src={packageImages[key]} alt={label} className="w-16 h-16 object-cover border flex-shrink-0" style={{ borderColor: 'var(--line)' }} />
+              ) : (
+                <div className="idn-hatch w-16 h-16 flex items-center justify-center border flex-shrink-0" style={{ borderColor: 'var(--line)' }}>
+                  <ImagePlus size={18} style={{ color: 'var(--ink)', opacity: 0.3 }} />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>{label}</div>
+                <input type="file" accept="image/*" onChange={(e) => handlePackagePhoto(key, e)} className="w-full text-[11px]" style={{ color: 'var(--ink)' }} />
+              </div>
+              {packageImages?.[key] && (
+                <button onClick={() => setPackageImages((p) => ({ ...p, [key]: '' }))} className="p-2 border flex-shrink-0" style={{ borderColor: 'var(--line)' }}>
+                  <Trash2 size={14} style={{ color: 'var(--stamp)' }} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
         <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>조기예약 할인 설정</h3>
         <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
@@ -1965,6 +2130,7 @@ function AdminReservations({ reservations }) {
                     {r.savings > 0 && <span className="text-[11px] font-normal" style={{ color: 'var(--stamp)' }}> (−{won(r.savings)})</span>}
                   </span>
                 </div>
+                <CopyMessageButton text={buildReservationMessage(r)} label="카톡 문구 복사" compact />
               </div>
             );
           })}
@@ -2083,7 +2249,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel }) {
+function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -2113,7 +2279,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
       {tab === 'orders' && <AdminOrders reservations={reservations} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} />}
-      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />}
+      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />}
     </div>
   );
 }
@@ -2130,6 +2296,7 @@ export default function App() {
     { count: 20, discount: 12 },
   ]);
   const [regionLabel, setRegionLabel] = useState('우리 동네');
+  const [packageImages, setPackageImages] = useState({ starter: '', sleep: '', full: '' });
   const [referralAgent] = useState(() => captureReferralAgent());
   const [loaded, setLoaded] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -2157,13 +2324,14 @@ export default function App() {
       else if (res && !cancelled) setReservations(res);
 
       const { data: settings, error: setErr } = await supabase
-        .from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel').eq('id', 1).single();
+        .from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages').eq('id', 1).single();
       if (setErr) console.error('settings load failed', setErr);
       else if (settings && !cancelled) {
         if (settings.earlyBirdDays != null) setEarlyBirdDays(settings.earlyBirdDays);
         if (settings.earlyBirdDiscount != null) setEarlyBirdDiscount(settings.earlyBirdDiscount);
         if (settings.regionThresholds) setRegionThresholds(settings.regionThresholds);
         if (settings.regionLabel) setRegionLabel(settings.regionLabel);
+        if (settings.packageImages) setPackageImages((p) => ({ ...p, ...settings.packageImages }));
       }
 
       if (!cancelled) setLoaded(true);
@@ -2173,9 +2341,9 @@ export default function App() {
 
   useEffect(() => {
     if (!loaded) return;
-    supabase.from('settings').update({ earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel }).eq('id', 1)
+    supabase.from('settings').update({ earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages }).eq('id', 1)
       .then(({ error }) => error && console.error('settings save failed', error));
-  }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, loaded]);
+  }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages, loaded]);
 
   async function addReservation(r) {
     setReservations((rs) => [...rs, r]);
@@ -2220,9 +2388,9 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} onAddReservation={addReservation} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} onAddReservation={addReservation} />
           : adminUnlocked
-            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} />
+            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />
             : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>

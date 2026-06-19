@@ -117,6 +117,16 @@ function won(n) {
 }
 const SITE_URL = 'https://dgagu.com';
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
+// 예약에 저장할 상품 정보는 사진(images/detailImages)을 빼고 화면표시에 필요한 것만 남겨요.
+// 안 그러면 예약 1건마다 상품 사진(원본 base64)이 통째로 복제 저장돼서 테이블이 급격히 무거워져요.
+function slimProductForReservation(p) {
+  if (!p) return p;
+  const { images, detailImages, ...rest } = p;
+  return rest;
+}
+function slimItemsForReservation(items) {
+  return (items || []).map((it) => ({ ...it, product: slimProductForReservation(it.product) }));
+}
 function buildReservationMessage(r) {
   const lines = [];
   lines.push(`[D가구] ${r.name}님, 예약 감사해요 🙏`);
@@ -2674,6 +2684,15 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 주문조회 페이지는 reservations 하나만 있으면 충분해서, products/settings를 기다리지 않고 바로 떠요
+      if (view === 'order') {
+        const { data, error } = await supabase.from('reservations').select('*').order('created_at');
+        if (error) console.error('reservation load failed', error);
+        else if (data && !cancelled) setReservations(data);
+        if (!cancelled) setLoaded(true);
+        return;
+      }
+
       const [prodRes, resRes, settingsRes] = await Promise.all([
         supabase.from('products').select('*').order('id'),
         supabase.from('reservations').select('*').order('created_at'),
@@ -2712,7 +2731,7 @@ export default function App() {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
       installIncluded: r.installIncluded ?? true, installFeeTotal: r.installFeeTotal || 0,
-      items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
+      items: slimItemsForReservation(r.items), subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
     };
     setReservations((rs) => [...rs, payload]);

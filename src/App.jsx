@@ -1398,6 +1398,15 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
 
       {step === 'room' && (
         <div className="px-4 pt-3 space-y-3">
+          <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+            <p className="text-[12.5px] leading-relaxed font-bold" style={{ color: 'var(--ink)' }}>
+              디자인과 내구성을 직접 확인하고 엄선한 가구만 입점시켜요.
+            </p>
+            <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.75 }}>
+              제품 하자가 있으면 100% 교환 또는 환불해드려요.<br />
+              입주일에 맞춰 설치까지 책임지고 끝내드릴게요.
+            </p>
+          </div>
           <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
             <h3 className="idn-display font-bold text-base mb-1" style={{ color: 'var(--ink)' }}>내 방에 뭐가 있나요?</h3>
             <p className="text-xs mb-1" style={{ color: 'var(--ink)', opacity: 0.6 }}>이미 있는 건 빼고, 필요한 것만 보여드릴게요</p>
@@ -2043,6 +2052,11 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
 }
 
 function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages }) {
+  const [agentCode, setAgentCode] = useState('');
+  const trimmedCode = agentCode.trim();
+  const qrUrl = trimmedCode ? `${SITE_URL}/?agent=${encodeURIComponent(trimmedCode)}` : '';
+  const qrImageSrc = qrUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}` : '';
+
   function updateThreshold(i, field, value) {
     setRegionThresholds((ts) => ts.map((t, idx) => (idx === i ? { ...t, [field]: Number(value) || 0 } : t)));
   }
@@ -2063,6 +2077,46 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
   ];
   return (
     <div className="space-y-3">
+      <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>부동산 제휴 QR 생성</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          부동산마다 고유 코드(예: A001)를 정해서 입력하면, 그 부동산용 QR코드가 만들어져요. 손님이 이 QR로 들어와서 예약하면 관리자 → 예약현황에 어느 부동산을 통해 왔는지 자동으로 집계돼요.
+        </p>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={agentCode}
+            onChange={(e) => setAgentCode(e.target.value)}
+            placeholder="부동산 코드 (예: A001, 건대공인)"
+            className="flex-1 border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--line)' }}
+          />
+        </div>
+        {qrUrl && (
+          <div className="flex flex-col items-center border-t pt-3" style={{ borderColor: 'var(--line)' }}>
+            <img src={qrImageSrc} alt={`${trimmedCode} QR코드`} className="w-40 h-40 border" style={{ borderColor: 'var(--line)' }} />
+            <div className="idn-mono text-[11px] mt-2 text-center break-all" style={{ color: 'var(--ink)', opacity: 0.6 }}>{qrUrl}</div>
+            <div className="flex gap-2 mt-2.5 w-full">
+              <a
+                href={qrImageSrc}
+                download={`dgagu-qr-${trimmedCode}.png`}
+                className="flex-1 text-center text-xs font-bold py-2 border-2"
+                style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+              >
+                QR 이미지 다운로드
+              </a>
+              <button
+                onClick={() => navigator.clipboard?.writeText(qrUrl)}
+                className="flex-1 text-xs font-bold py-2"
+                style={{ background: 'var(--ink)', color: '#fff' }}
+              >
+                링크 복사
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
         <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>패키지 대표 사진</h3>
         <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>

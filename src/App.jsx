@@ -42,7 +42,8 @@ const EARLYBIRD_DAYS_DEFAULT = 28;     // 조기예약 기준일 (입주일 4주
 const EARLYBIRD_DISCOUNT_DEFAULT = 6;  // 조기예약 할인 %
 const PEAK_MONTHS = [1, 7];            // 성수기 — 2월(1), 8월(7) — 0-indexed
 const PEAK_LEAD_DAYS = 42;             // 성수기 마감 기준 (6주)
-const MIN_LEAD_DAYS = 7;               // 입주일 당일배송 보장을 위한 최소 리드타임 (재고 없이 발주하는 구조라 이 미만이면 당일 보장 불가)
+const MIN_LEAD_DAYS = 7;               // 입주일 당일배송 보장을 위한 최소 리드타임 (발주~도착 평균 소요일 이상 남아야 당일 보장 가능)
+const AVG_LEAD_DAYS = 7;               // 발주 시점부터 평균 도착까지 걸리는 일수 (도매상 리드타임 기준) — 임박 예약 시 예상 도착일 계산에 사용
 const REGION_GAUGE_MIN_COUNT = 3;      // 이 인원 이상 모여야 지역 게이지 노출
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -76,6 +77,13 @@ function isPeakDeadlineSoon(dateStr) {
 function isLeadTimeTight(dateStr) {
   const days = daysUntil(dateStr);
   return days != null && days >= 0 && days < MIN_LEAD_DAYS;
+}
+// 임박 예약 시 예상 도착일 — 오늘부터 평균 리드타임만큼 더한 날짜 ('M/D' 형식)
+function estimatedArrivalLabel() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + AVG_LEAD_DAYS);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 // 'YYYY-MM-DD' -> 그 주 월요일의 'YYYY-MM-DD' (입주 주간 묶음 키)
 function weekKey(dateStr) {
@@ -247,10 +255,10 @@ function ArrivalPromise({ moveInDate, earlyBirdDays, earlyBirdDiscount }) {
           ) : leadTight ? (
             <>
               <div className="text-sm font-bold mb-1" style={{ color: 'var(--stamp)' }}>
-                입주일이 너무 임박했어요
+                입주일보다 늦게 도착할 수 있어요
               </div>
               <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.65 }}>
-                재고 없이 주문 시점에 발주하는 구조라, 입주일까지 {MIN_LEAD_DAYS}일 미만이면 당일 도착을 약속드리기 어려워요. 예약은 가능하지만, 실제 도착일은 발주 후 평균 5~7일 정도 걸려요. 정확한 일정은 예약 후 안내드릴게요.
+                예약은 그대로 가능하지만, 입주일까지 {MIN_LEAD_DAYS}일이 안 남아서 입주일 당일 도착은 어려워요. 예약 시점 기준으로 <strong style={{ color: 'var(--ink)' }}>{estimatedArrivalLabel()}쯤</strong> 도착할 예정이에요.
               </p>
             </>
           ) : (
@@ -620,7 +628,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
           </span>
           <span className="flex items-center gap-1">
             <span className="idn-hatch w-3 h-3 inline-block border" style={{ borderColor: 'var(--stamp)', borderStyle: 'dashed' }} />
-            당일배송 불가 (재고없음)
+            입주일 도착 어려움
           </span>
         </div>
       </div>

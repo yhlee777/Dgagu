@@ -153,7 +153,7 @@ function initKakao() {
 function shareKakao({ name, moveInDate, total, items = [], orderId }) {
   if (!initKakao()) {
     alert('카카오톡 공유를 불러오는 중이에요. 잠시 후 다시 눌러주세요.');
-    return;
+    return false;
   }
   const itemDesc = items.slice(0, 3).map((it) => it.product?.name || '').filter(Boolean).join(', ')
     + (items.length > 3 ? ` 외 ${items.length - 3}개` : '');
@@ -169,9 +169,11 @@ function shareKakao({ name, moveInDate, total, items = [], orderId }) {
       },
       buttons: [{ title: '주문 상태 확인하기', link: { mobileWebUrl: orderUrl, webUrl: orderUrl } }],
     });
+    return true;
   } catch (e) {
     console.error('Kakao share failed', e);
     alert('카카오톡 공유 중 오류가 발생했어요. 카카오 디벨로퍼스에서 dgagu.com 도메인이 등록됐는지 확인해주세요.');
+    return false;
   }
 }
 // 카카오/다음 우편번호 검색 팝업 — 별도 API 키 없이 사용 가능
@@ -1049,6 +1051,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [shared, setShared] = useState(false);
 
   useEffect(() => { setAddress(initialAddress); }, [initialAddress]);
 
@@ -1075,7 +1078,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); setShared(false); onClose();
   }
 
   return (
@@ -1193,7 +1196,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
             </p>
             <button
-              onClick={() => shareKakao({ name, moveInDate, total, items: cartEntries, orderId })}
+              onClick={() => { if (shareKakao({ name, moveInDate, total, items: cartEntries, orderId })) setShared(true); }}
               disabled={submitting}
               className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1 disabled:opacity-50"
               style={{ background: '#FEE500', color: '#191919' }}
@@ -1203,9 +1206,15 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               </svg>
               {submitting ? '준비 중...' : '내 카톡에 저장하기'}
             </button>
-            <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
-              확인
-            </button>
+            {shared ? (
+              <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+                확인
+              </button>
+            ) : (
+              <p className="text-[11px] mt-3" style={{ color: 'var(--ink)', opacity: 0.4 }}>
+                카톡 저장을 마치면 확인 버튼이 나타나요
+              </p>
+            )}
           </div>
         )}
       </div>

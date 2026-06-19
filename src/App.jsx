@@ -115,6 +115,7 @@ function totalDiscountPct(earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) 
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
 }
+const SITE_URL = 'https://dgagu.com';
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
 function buildReservationMessage(r) {
   const lines = [];
@@ -131,10 +132,13 @@ function buildReservationMessage(r) {
   lines.push('');
   lines.push('입주 전날, 설치기사님이 전화로 정확한 방문 시간을 다시 확인드릴게요.');
   lines.push('입주일에 깔끔하게 완성된 방으로 맞이하실 수 있도록 준비할게요!');
+  if (r.id != null) {
+    lines.push('');
+    lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.id}`);
+  }
   return lines.join('\n');
 }
 
-const SITE_URL = 'https://dgagu.com';
 const KAKAO_JS_KEY = '32e312d09ea47268d6755d9bcb73bf1d';
 function initKakao() {
   if (!window.Kakao) return false;
@@ -146,23 +150,24 @@ function initKakao() {
     return false;
   }
 }
-function shareKakao({ name, moveInDate, total, items = [] }) {
+function shareKakao({ name, moveInDate, total, items = [], orderId }) {
   if (!initKakao()) {
     alert('카카오톡 공유를 불러오는 중이에요. 잠시 후 다시 눌러주세요.');
     return;
   }
   const itemDesc = items.slice(0, 3).map((it) => it.product?.name || '').filter(Boolean).join(', ')
     + (items.length > 3 ? ` 외 ${items.length - 3}개` : '');
+  const orderUrl = orderId ? `${SITE_URL}/order/${orderId}` : SITE_URL;
   try {
     window.Kakao.Share.sendDefault({
       objectType: 'feed',
       content: {
         title: `D가구 예약 완료 — ${name}님`,
-        description: `입주일 ${moveInDate || '미정'} · ${itemDesc}\n총 ${won(total)}\n\n링크를 눌러 D가구로 다시 들어오세요`,
+        description: `입주일 ${moveInDate || '미정'} · ${itemDesc}\n총 ${won(total)}\n\n링크를 눌러 주문 상태를 확인하세요`,
         imageUrl: `${SITE_URL}/og-image.png`,
-        link: { mobileWebUrl: SITE_URL, webUrl: SITE_URL },
+        link: { mobileWebUrl: orderUrl, webUrl: orderUrl },
       },
-      buttons: [{ title: 'D가구 바로가기', link: { mobileWebUrl: SITE_URL, webUrl: SITE_URL } }],
+      buttons: [{ title: '주문 상태 확인하기', link: { mobileWebUrl: orderUrl, webUrl: orderUrl } }],
     });
   } catch (e) {
     console.error('Kakao share failed', e);
@@ -188,6 +193,22 @@ function dDayLabel(days) {
   if (days < 0) return '지난 날짜';
   if (days === 0) return 'D-DAY';
   return `D-${days}`;
+}
+// 예약 진행 단계 — 발주~설치까지 운영자가 순서대로 넘기는 상태값
+const ORDER_STATUSES = [
+  { key: 'received', label: '예약접수' },
+  { key: 'ordered', label: '발주완료' },
+  { key: 'stocked', label: '재고확보' },
+  { key: 'shipping', label: '배송중' },
+  { key: 'installed', label: '설치완료' },
+];
+function statusIndex(status) {
+  const i = ORDER_STATUSES.findIndex((s) => s.key === status);
+  return i === -1 ? 0 : i;
+}
+function nextStatus(status) {
+  const i = statusIndex(status);
+  return i < ORDER_STATUSES.length - 1 ? ORDER_STATUSES[i + 1].key : status;
 }
 // QR/링크로 들어온 ?agent=A001 같은 부동산 추천코드를 잡아서 보관해요.
 // 한 번 잡으면 같은 브라우저에서는 계속 유지돼서, 둘러보다 나중에 예약해도 추천이 따라가요.
@@ -1026,6 +1047,8 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
   const [done, setDone] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { setAddress(initialAddress); }, [initialAddress]);
 
@@ -1043,13 +1066,16 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
 
-  function handleSubmit() {
-    if (!canSubmit) return;
-    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() });
+  async function handleSubmit() {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    const id = await onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() });
+    setOrderId(id);
+    setSubmitting(false);
     setDone(true);
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); onClose();
   }
 
   return (
@@ -1089,15 +1115,6 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                   </div>
                 )}
               </div>
-              <details className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
-                <summary className="px-2.5 py-2 font-bold cursor-pointer" style={{ color: 'var(--ink)' }}>
-                  왜 이 가격인가요?
-                </summary>
-                <div className="px-2.5 pb-2.5 pt-1 space-y-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
-                  <p>이 가격엔 공장 직발주가 + 묶음배송·설치비가 포함돼 있어요. 가구를 따로 사서 직접 조립하거나, 산 뒤에 설치만 따로 맡기면 보통 한 건당 4~8만원이 추가로 들어요.</p>
-                  <p>최저가라고 우기는 대신, 가격이 어떻게 만들어지는지를 보여드리는 거예요.</p>
-                </div>
-              </details>
               {savings > 0 && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
                   <div className="px-2.5 py-1.5 font-bold border-b" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.55 }}>
@@ -1155,11 +1172,11 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit}
+                disabled={!canSubmit || submitting}
                 className="w-full mt-4 py-3 font-bold text-sm disabled:opacity-30"
                 style={{ background: 'var(--ink)', color: '#fff' }}
               >
-                {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
+                {submitting ? '예약 처리 중...' : moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
                 지금은 결제 없이 예약만 접수돼요. 예약 확인 연락을 드린 뒤 진행돼요.
@@ -1176,7 +1193,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               카카오톡으로 예약 내역을 저장해두세요<br />나중에 링크를 눌러 다시 들어올 수 있어요
             </p>
             <button
-              onClick={() => shareKakao({ name, moveInDate, total, items: cartEntries })}
+              onClick={() => shareKakao({ name, moveInDate, total, items: cartEntries, orderId })}
               className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1"
               style={{ background: '#FEE500', color: '#191919' }}
             >
@@ -1301,8 +1318,8 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   function handleReserve() {
     setModalOpen(true);
   }
-  function handleSubmitReservation(payload) {
-    onAddReservation(payload);
+  async function handleSubmitReservation(payload) {
+    return onAddReservation(payload);
   }
   function handleModalClose() {
     setModalOpen(false);
@@ -2146,7 +2163,9 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
   );
 }
 
-function AdminReservations({ reservations }) {
+function AdminReservations({ reservations, onUpdateStatus }) {
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | status key
+
   if (reservations.length === 0) {
     return (
       <div className="text-center text-sm py-12 border" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
@@ -2171,6 +2190,19 @@ function AdminReservations({ reservations }) {
     agentCount[key] = (agentCount[key] || 0) + 1;
   });
   const agentRanking = Object.entries(agentCount).sort((a, b) => b[1] - a[1]);
+
+  const statusCount = {};
+  reservations.forEach((r) => { const s = r.status || 'received'; statusCount[s] = (statusCount[s] || 0) + 1; });
+
+  const filtered = statusFilter === 'all' ? reservations : reservations.filter((r) => (r.status || 'received') === statusFilter);
+  // 입주일이 임박한 순서로 정렬 (날짜 미정은 맨 뒤로)
+  const sorted = [...filtered].sort((a, b) => {
+    const da = daysUntil(a.moveInDate), db = daysUntil(b.moveInDate);
+    if (da == null && db == null) return b.ts - a.ts;
+    if (da == null) return 1;
+    if (db == null) return -1;
+    return da - db;
+  });
 
   return (
     <div className="space-y-3">
@@ -2215,17 +2247,90 @@ function AdminReservations({ reservations }) {
 
       <div>
         <div className="idn-display font-bold text-sm mb-2" style={{ color: 'var(--ink)' }}>예약 목록</div>
+
+        {/* 상태별 필터 탭 */}
+        <div className="idn-noscroll flex gap-1.5 overflow-x-auto pb-2 mb-1">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 border"
+            style={{
+              borderColor: 'var(--ink)',
+              background: statusFilter === 'all' ? 'var(--ink)' : 'var(--surface)',
+              color: statusFilter === 'all' ? '#fff' : 'var(--ink)',
+            }}
+          >
+            전체 {reservations.length}
+          </button>
+          {ORDER_STATUSES.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setStatusFilter(s.key)}
+              className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 border"
+              style={{
+                borderColor: 'var(--line)',
+                background: statusFilter === s.key ? 'var(--ink)' : 'var(--surface)',
+                color: statusFilter === s.key ? '#fff' : 'var(--ink)',
+                opacity: statusCount[s.key] ? 1 : 0.4,
+              }}
+            >
+              {s.label} {statusCount[s.key] || 0}
+            </button>
+          ))}
+        </div>
+
         <div className="space-y-2">
-          {[...reservations].reverse().map((r) => {
+          {sorted.map((r) => {
             const tierLabel = r.moveInDate ? (r.earlyBird ? '조기예약' : '일반') : '날짜 미정';
+            const status = r.status || 'received';
+            const sIdx = statusIndex(status);
+            const isFinal = sIdx === ORDER_STATUSES.length - 1;
+            const days = daysUntil(r.moveInDate);
+            const urgent = days != null && days >= 0 && days <= 3 && !isFinal;
             return (
-              <div key={r.ts} className="border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{r.name}</div>
-                  <div className="idn-mono text-[11px] border px-2 py-0.5" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
-                    {r.moveInDate || '-'} · {tierLabel}
+              <div key={r.id ?? r.ts} className="border p-3" style={{ borderColor: urgent ? 'var(--stamp)' : 'var(--line)', borderWidth: urgent ? '2px' : '1px', background: 'var(--surface)' }}>
+                <div className="flex items-center justify-between mb-1.5 gap-2">
+                  <div className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{r.name}</div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {r.moveInDate && (
+                      <span className="idn-mono text-[11px] font-bold px-1.5 py-0.5 border" style={{ borderColor: urgent ? 'var(--stamp)' : 'var(--line)', color: urgent ? 'var(--stamp)' : 'var(--ink)', opacity: urgent ? 1 : 0.7 }}>
+                        {dDayLabel(days)}
+                      </span>
+                    )}
+                    <div className="idn-mono text-[11px] border px-2 py-0.5" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
+                      {r.moveInDate || '-'} · {tierLabel}
+                    </div>
                   </div>
                 </div>
+
+                {/* 진행 상태 표시 — 점 5개로 단계 시각화 */}
+                <div className="flex items-center gap-1 mb-2">
+                  {ORDER_STATUSES.map((s, i) => (
+                    <div key={s.key} className="flex-1 flex items-center">
+                      <div className="flex-1 h-1.5" style={{ background: i <= sIdx ? 'var(--ink)' : 'var(--line)' }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                    {ORDER_STATUSES[sIdx].label}
+                  </span>
+                  {!isFinal && (
+                    <button
+                      onClick={() => onUpdateStatus(r.id, nextStatus(status))}
+                      disabled={r.id == null}
+                      className="text-[11px] font-bold px-2.5 py-1 flex items-center gap-1 disabled:opacity-30"
+                      style={{ background: 'var(--ink)', color: '#fff' }}
+                    >
+                      {ORDER_STATUSES[sIdx + 1].label}로 <ChevronRight size={12} />
+                    </button>
+                  )}
+                  {isFinal && (
+                    <span className="text-[11px] font-bold flex items-center gap-1" style={{ color: 'var(--gold)' }}>
+                      <Check size={12} /> 완료
+                    </span>
+                  )}
+                </div>
+
                 <div className="idn-mono text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{r.phone}</div>
                 {r.referralAgent && (
                   <div className="text-[11px] mb-1.5 inline-block px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
@@ -2350,6 +2455,113 @@ function AdminOrders({ reservations }) {
 // 관리자 PIN — 운영 시작 전에 이 숫자만 바꿔주세요.
 const ADMIN_PIN = '0610';
 
+// 손님용 주문조회 화면 — 카카오톡으로 받은 링크(/order/:id)로 들어와서 상태를 확인해요
+function OrderLookup({ orderId, reservations, loaded }) {
+  if (!loaded) {
+    return (
+      <div className="px-4 pt-20 text-center text-sm" style={{ color: 'var(--ink)', opacity: 0.4 }}>
+        불러오는 중...
+      </div>
+    );
+  }
+
+  const r = reservations.find((res) => String(res.id) === String(orderId));
+
+  if (!r) {
+    return (
+      <div className="px-4 pt-16 pb-32 flex flex-col items-center text-center">
+        <Search size={28} style={{ color: 'var(--ink)', opacity: 0.3 }} />
+        <div className="idn-display text-lg font-bold mt-3" style={{ color: 'var(--ink)' }}>주문을 찾을 수 없어요</div>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+          링크가 정확한지 확인해주세요. 문제가 계속되면 카카오톡으로 문의해주세요.
+        </p>
+      </div>
+    );
+  }
+
+  const status = r.status || 'received';
+  const sIdx = statusIndex(status);
+  const isFinal = sIdx === ORDER_STATUSES.length - 1;
+  const days = daysUntil(r.moveInDate);
+
+  return (
+    <div className="px-4 pt-5 pb-12">
+      <div className="text-center mb-5">
+        <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>주문번호 {r.id}</div>
+        <div className="idn-display text-xl font-bold mt-1" style={{ color: 'var(--ink)' }}>{r.name}님의 주문</div>
+      </div>
+
+      {/* 진행 상태 */}
+      <div className="border-2 mb-4" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+        <div className="px-4 py-3" style={{ background: 'var(--ink)' }}>
+          <div className="flex items-center justify-between">
+            <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>진행 상태</span>
+            {r.moveInDate && (
+              <span className="idn-mono text-[11px]" style={{ color: '#fff', opacity: 0.65 }}>입주일 {dDayLabel(days)}</span>
+            )}
+          </div>
+        </div>
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-1 mb-3">
+            {ORDER_STATUSES.map((s, i) => (
+              <div key={s.key} className="flex-1 h-1.5" style={{ background: i <= sIdx ? 'var(--ink)' : 'var(--line)' }} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {isFinal ? <Check size={16} style={{ color: 'var(--gold)' }} /> : <Package size={16} style={{ color: 'var(--ink)' }} />}
+            <span className="text-sm font-bold" style={{ color: isFinal ? 'var(--gold)' : 'var(--ink)' }}>
+              {ORDER_STATUSES[sIdx].label}
+            </span>
+          </div>
+          <p className="text-[12px] leading-relaxed mt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+            {status === 'received' && '예약이 접수됐어요. 곧 발주를 진행할게요.'}
+            {status === 'ordered' && '공급사에 발주를 넣었어요. 입고를 기다리고 있어요.'}
+            {status === 'stocked' && '상품이 입고됐어요. 배송·설치 일정을 준비하고 있어요.'}
+            {status === 'shipping' && '배송이 시작됐어요. 입주 전날 설치기사님이 방문 시간을 전화로 안내드려요.'}
+            {status === 'installed' && '설치까지 완료됐어요. 새로운 공간에서 좋은 시간 보내세요!'}
+          </p>
+        </div>
+      </div>
+
+      {/* 주문 내역 */}
+      <div className="border mb-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <div className="px-3 py-2 border-b font-bold text-sm" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+          주문 내역
+        </div>
+        <div className="px-3 py-2">
+          {(r.items || []).map((it) => (
+            <div key={it.product?.id} className="flex justify-between text-xs py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
+              <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
+                {it.product ? CAT_BY_ID[it.product.category]?.label : ''} · {it.product?.name}
+                {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+              </span>
+              <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+            <span>합계</span>
+            <span className="idn-display">{won(r.total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 배송지 */}
+      {r.address && (
+        <div className="border mb-4 px-3 py-2.5" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+          <div className="flex items-start gap-1.5 text-xs" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+            <MapPin size={13} className="flex-shrink-0 mt-0.5" />
+            <span>{r.address}</span>
+          </div>
+        </div>
+      )}
+
+      <p className="text-center text-[11px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>
+        이 페이지는 카카오톡으로 받은 링크로 언제든 다시 들어올 수 있어요.
+      </p>
+    </div>
+  );
+}
+
 function AdminGate({ onUnlock }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
@@ -2380,7 +2592,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages }) {
+function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, onUpdateStatus }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -2409,14 +2621,24 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
 
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
       {tab === 'orders' && <AdminOrders reservations={reservations} />}
-      {tab === 'reservations' && <AdminReservations reservations={reservations} />}
+      {tab === 'reservations' && <AdminReservations reservations={reservations} onUpdateStatus={onUpdateStatus} />}
       {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />}
     </div>
   );
 }
 
+function parseOrderIdFromPath() {
+  const m = window.location.pathname.match(/^\/order\/(\d+)/);
+  return m ? m[1] : null;
+}
+
 export default function App() {
-  const [view, setView] = useState(() => (window.location.pathname.startsWith('/admin') ? 'admin' : 'shop'));
+  const [view, setView] = useState(() => {
+    if (window.location.pathname.startsWith('/admin')) return 'admin';
+    if (parseOrderIdFromPath()) return 'order';
+    return 'shop';
+  });
+  const [orderId] = useState(() => parseOrderIdFromPath());
   const [products, setProducts] = useState(SEED_PRODUCTS);
   const [reservations, setReservations] = useState([]);
   const [earlyBirdDays, setEarlyBirdDays] = useState(EARLYBIRD_DAYS_DEFAULT);
@@ -2477,14 +2699,25 @@ export default function App() {
   }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages, loaded]);
 
   async function addReservation(r) {
+    const localKey = r.ts;
     setReservations((rs) => [...rs, r]);
-    const { error } = await supabase.from('reservations').insert({
+    const { data, error } = await supabase.from('reservations').insert({
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
       installIncluded: r.installIncluded ?? true, installFeeTotal: r.installFeeTotal || 0,
       items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
-    });
-    if (error) console.error('reservation save failed', error);
+      status: 'received',
+    }).select('id').single();
+    if (error) { console.error('reservation save failed', error); return null; }
+    // 방금 추가한 로컬 항목에 실제 DB id를 채워줘요 (주문조회 링크 생성에 필요)
+    setReservations((rs) => rs.map((res) => (res.ts === localKey ? { ...res, id: data.id } : res)));
+    return data.id;
+  }
+
+  async function updateReservationStatus(id, status) {
+    setReservations((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)));
+    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+    if (error) console.error('reservation status update failed', error);
   }
 
   return (
@@ -2496,7 +2729,7 @@ export default function App() {
         background: 'var(--bg)', color: 'var(--ink)',
       }}
     >
-      <div className="sticky top-0 z-10" style={{ background: view === 'shop' ? 'var(--ink)' : 'var(--admin)', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="sticky top-0 z-10" style={{ background: view === 'admin' ? 'var(--admin)' : 'var(--ink)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="px-4 py-3 flex items-center justify-between text-white">
           <div>
             <div className="flex items-center gap-1.5">
@@ -2520,9 +2753,11 @@ export default function App() {
       <div className="max-w-md mx-auto">
         {view === 'shop'
           ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} onAddReservation={addReservation} />
-          : adminUnlocked
-            ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />
-            : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
+          : view === 'order'
+            ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} />
+            : adminUnlocked
+              ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} onUpdateStatus={updateReservationStatus} />
+              : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>
 

@@ -1066,13 +1066,12 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
-    const id = await onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() });
-    setOrderId(id);
-    setSubmitting(false);
-    setDone(true);
+    setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
+    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
+      .then((id) => { setOrderId(id); setSubmitting(false); });
   }
   function handleClose() {
     setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); onClose();
@@ -1172,11 +1171,11 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit || submitting}
+                disabled={!canSubmit}
                 className="w-full mt-4 py-3 font-bold text-sm disabled:opacity-30"
                 style={{ background: 'var(--ink)', color: '#fff' }}
               >
-                {submitting ? '예약 처리 중...' : moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
+                {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
                 지금은 결제 없이 예약만 접수돼요. 예약 확인 연락을 드린 뒤 진행돼요.
@@ -1190,22 +1189,19 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               입주일에 맞춰 최저가로 준비해서<br />보내드릴게요.
             </p>
             <p className="text-xs mt-3 mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              카카오톡으로 예약 내역을 저장해두세요<br />나중에 링크를 눌러 다시 들어올 수 있어요
+              내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
             </p>
             <button
               onClick={() => shareKakao({ name, moveInDate, total, items: cartEntries, orderId })}
-              className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1"
+              disabled={submitting}
+              className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1 disabled:opacity-50"
               style={{ background: '#FEE500', color: '#191919' }}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path fillRule="evenodd" clipRule="evenodd" d="M9 1.5C4.86 1.5 1.5 4.2 1.5 7.5c0 2.07 1.23 3.9 3.09 4.98L3.75 15l3.3-1.71C7.65 13.41 8.31 13.5 9 13.5c4.14 0 7.5-2.7 7.5-6S13.14 1.5 9 1.5z" fill="#191919"/>
               </svg>
-              카카오톡으로 예약 내역 받기
+              {submitting ? '준비 중...' : '내 카톡에 저장하기'}
             </button>
-            <CopyMessageButton
-              text={buildReservationMessage({ name, moveInDate, items: cartEntries, total })}
-              label="문구 복사해서 직접 보내기"
-            />
             <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
               확인
             </button>

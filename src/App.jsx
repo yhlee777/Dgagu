@@ -2462,7 +2462,7 @@ function OrderLookup({ orderId, reservations, loaded }) {
     );
   }
 
-  const r = reservations.find((res) => String(res.id) === String(orderId));
+  const r = reservations.find((res) => String(res.ts) === String(orderId));
 
   if (!r) {
     return (
@@ -2484,7 +2484,7 @@ function OrderLookup({ orderId, reservations, loaded }) {
   return (
     <div className="px-4 pt-5 pb-12">
       <div className="text-center mb-5">
-        <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>주문번호 {r.id}</div>
+        <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>주문 확인</div>
         <div className="idn-display text-xl font-bold mt-1" style={{ color: 'var(--ink)' }}>{r.name}님의 주문</div>
       </div>
 
@@ -2665,18 +2665,21 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: prods, error: prodErr } = await supabase.from('products').select('*').order('id');
-      if (prodErr) console.error('product load failed', prodErr);
-      else if (prods?.length && !cancelled) setProducts(prods);
+      const [prodRes, resRes, settingsRes] = await Promise.all([
+        supabase.from('products').select('*').order('id'),
+        supabase.from('reservations').select('*').order('created_at'),
+        supabase.from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages').eq('id', 1).single(),
+      ]);
 
-      const { data: res, error: resErr } = await supabase.from('reservations').select('*').order('created_at');
-      if (resErr) console.error('reservation load failed', resErr);
-      else if (res && !cancelled) setReservations(res);
+      if (prodRes.error) console.error('product load failed', prodRes.error);
+      else if (prodRes.data?.length && !cancelled) setProducts(prodRes.data);
 
-      const { data: settings, error: setErr } = await supabase
-        .from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages').eq('id', 1).single();
-      if (setErr) console.error('settings load failed', setErr);
-      else if (settings && !cancelled) {
+      if (resRes.error) console.error('reservation load failed', resRes.error);
+      else if (resRes.data && !cancelled) setReservations(resRes.data);
+
+      if (settingsRes.error) console.error('settings load failed', settingsRes.error);
+      else if (settingsRes.data && !cancelled) {
+        const settings = settingsRes.data;
         if (settings.earlyBirdDays != null) setEarlyBirdDays(settings.earlyBirdDays);
         if (settings.earlyBirdDiscount != null) setEarlyBirdDiscount(settings.earlyBirdDiscount);
         if (settings.regionThresholds) setRegionThresholds(settings.regionThresholds);
@@ -2696,8 +2699,6 @@ export default function App() {
   }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages, loaded]);
 
   async function addReservation(r) {
-    const localKey = r.ts;
-    setReservations((rs) => [...rs, r]);
     const payload = {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
@@ -2705,13 +2706,11 @@ export default function App() {
       items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
     };
+    setReservations((rs) => [...rs, payload]);
     const { error } = await supabase.from('reservations').insert(payload);
     if (error) { console.error('reservation save failed', error); return null; }
-    // insert 자체엔 select를 안 붙이고(느려질 수 있어서), ts로 방금 넣은 행의 id만 가볍게 다시 조회해요
-    const { data, error: idErr } = await supabase.from('reservations').select('id').eq('ts', r.ts).single();
-    if (idErr) { console.error('reservation id lookup failed', idErr); return null; }
-    setReservations((rs) => rs.map((res) => (res.ts === localKey ? { ...res, id: data.id } : res)));
-    return data.id;
+    // ts(타임스탬프)는 insert 시점에 이미 알고 있는 값이라, 추가 조회 없이 바로 주문조회 키로 써요
+    return r.ts;
   }
 
   async function updateReservationStatus(id, status) {

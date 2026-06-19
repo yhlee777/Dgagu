@@ -141,10 +141,11 @@ function buildReservationMessage(r) {
   lines.push(`총 금액: ${won(r.total)}`);
   lines.push('');
   lines.push('입주 전날, 설치기사님이 전화로 정확한 방문 시간을 다시 확인드릴게요.');
+  lines.push('결제는 설치가 끝난 당일, 기사님께 현장에서 카드나 계좌이체로 하시면 돼요.');
   lines.push('입주일에 깔끔하게 완성된 방으로 맞이하실 수 있도록 준비할게요!');
-  if (r.id != null) {
+  if (r.ts != null) {
     lines.push('');
-    lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.id}`);
+    lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.ts}`);
   }
   return lines.join('\n');
 }
@@ -1192,7 +1193,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                지금은 결제 없이 예약만 접수돼요. 예약 확인 연락을 드린 뒤 진행돼요.
+                지금은 결제 없이 예약만 접수돼요.<br />결제는 설치가 끝난 당일, 기사님께 현장에서 카드·계좌이체로 하시면 돼요.
               </p>
             </div>
           </>
@@ -1201,6 +1202,9 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
             <div className="idn-seal w-28 h-28 text-base mx-auto mb-4" style={{ borderWidth: '3px' }}>예약완료</div>
             <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.7 }}>
               입주일에 맞춰 최저가로 준비해서<br />보내드릴게요.
+            </p>
+            <p className="text-[12px] mt-2 px-2 py-1.5 inline-block border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)', opacity: 0.8 }}>
+              결제는 설치 완료 후 현장에서 (카드·계좌이체)
             </p>
             <p className="text-xs mt-3 mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
               내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
@@ -2624,6 +2628,14 @@ function OrderLookup({ orderId, reservations, loaded }) {
           </div>
         </div>
       )}
+
+      {/* 결제 안내 */}
+      <div className="border-2 mb-4 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+        <div className="text-xs font-bold mb-0.5" style={{ color: 'var(--ink)' }}>결제 안내</div>
+        <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+          미리 결제하실 필요 없어요. 설치가 끝난 당일, 기사님께 현장에서 카드나 계좌이체로 결제하시면 돼요.
+        </p>
+      </div>
 
       <p className="text-center text-[11px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>
         이 페이지는 카카오톡으로 받은 링크로 언제든 다시 들어올 수 있어요.

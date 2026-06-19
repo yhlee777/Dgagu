@@ -1071,7 +1071,8 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
     onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
-      .then((id) => { setOrderId(id); setSubmitting(false); });
+      .then((id) => { setOrderId(id); setSubmitting(false); })
+      .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
     setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); onClose();
@@ -2697,15 +2698,18 @@ export default function App() {
   async function addReservation(r) {
     const localKey = r.ts;
     setReservations((rs) => [...rs, r]);
-    const { data, error } = await supabase.from('reservations').insert({
+    const payload = {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
       installIncluded: r.installIncluded ?? true, installFeeTotal: r.installFeeTotal || 0,
       items: r.items, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
-    }).select('id').single();
+    };
+    const { error } = await supabase.from('reservations').insert(payload);
     if (error) { console.error('reservation save failed', error); return null; }
-    // 방금 추가한 로컬 항목에 실제 DB id를 채워줘요 (주문조회 링크 생성에 필요)
+    // insert 자체엔 select를 안 붙이고(느려질 수 있어서), ts로 방금 넣은 행의 id만 가볍게 다시 조회해요
+    const { data, error: idErr } = await supabase.from('reservations').select('id').eq('ts', r.ts).single();
+    if (idErr) { console.error('reservation id lookup failed', idErr); return null; }
     setReservations((rs) => rs.map((res) => (res.ts === localKey ? { ...res, id: data.id } : res)));
     return data.id;
   }

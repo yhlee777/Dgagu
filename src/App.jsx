@@ -46,6 +46,15 @@ const MIN_LEAD_DAYS = 7;               // 입주일 당일배송 보장을 위�
 const AVG_LEAD_DAYS = 7;               // 발주 시점부터 평균 도착까지 걸리는 일수 (도매상 리드타임 기준) — 임박 예약 시 예상 도착일 계산에 사용
 const REGION_GAUGE_MIN_COUNT = 3;      // 이 인원 이상 모여야 지역 게이지 노출
 
+// 배송·설치 가능 요일 — 트럭 대여를 모아서 효율적으로 돌기 위해 주 2회로 고정 (화=2, 토=6)
+const DELIVERY_WEEKDAYS = [2, 6];
+const DELIVERY_DAYS_LABEL = '화·토';
+function isDeliveryDay(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T00:00:00');
+  return DELIVERY_WEEKDAYS.includes(d.getDay());
+}
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function isoDate(y, m, d) {
@@ -602,8 +611,10 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
     const dateStr = isoDate(view.y, view.m, dayNum);
     const diff = Math.round((dateObj - today) / 86400000);
     const isPast = diff < 0;
+    const deliverable = !isPast && isDeliveryDay(dateStr);
     cells.push({
       day: dayNum, dateStr, isPast, isToday: diff === 0, isSelected: dateStr === value,
+      deliverable,
       early: isPast ? false : isEarlyBird(dateStr, earlyBirdDays),
       peakSoon: isPast ? false : isPeakDeadlineSoon(dateStr),
       leadTight: isPast ? false : isLeadTimeTight(dateStr),
@@ -615,7 +626,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
     <div className="border" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--ink)' }}>
-          <Calendar size={15} /> 입주 예정일
+          <Calendar size={15} /> 배송·설치일 <span className="text-[10px] font-normal" style={{ opacity: 0.5 }}>({DELIVERY_DAYS_LABEL}만 가능)</span>
         </span>
         {value ? (
           <span className="idn-mono text-xs font-bold px-2 py-1 border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
@@ -646,18 +657,18 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
           {cells.map((cell, i) => cell ? (
             <button
               key={i}
-              disabled={cell.isPast}
+              disabled={cell.isPast || !cell.deliverable}
               onClick={() => onChange(cell.dateStr)}
-              className={`aspect-square flex flex-col items-center justify-center gap-0.5 ${!cell.isPast && cell.leadTight ? 'idn-hatch' : ''}`}
+              className={`aspect-square flex flex-col items-center justify-center gap-0.5 ${cell.deliverable && cell.leadTight ? 'idn-hatch' : ''}`}
               style={{
-                border: cell.isToday ? '2px solid var(--gold)' : cell.leadTight ? '1px dashed var(--stamp)' : cell.peakSoon ? `1px solid var(--stamp)` : '1px solid var(--line)',
-                background: cell.isSelected ? 'var(--ink)' : cell.isPast ? 'var(--bg)' : cell.leadTight ? undefined : cell.early ? 'color-mix(in srgb, var(--gold) 18%, var(--surface))' : 'var(--surface)',
+                border: cell.isToday ? '2px solid var(--gold)' : cell.deliverable && cell.leadTight ? '1px dashed var(--stamp)' : cell.deliverable && cell.peakSoon ? `1px solid var(--stamp)` : '1px solid var(--line)',
+                background: cell.isSelected ? 'var(--ink)' : (cell.isPast || !cell.deliverable) ? 'var(--bg)' : cell.leadTight ? undefined : cell.early ? 'color-mix(in srgb, var(--gold) 18%, var(--surface))' : 'var(--surface)',
                 color: cell.isSelected ? '#fff' : 'var(--ink)',
-                opacity: cell.isPast ? 0.35 : 1,
+                opacity: cell.isPast ? 0.3 : !cell.deliverable ? 0.25 : 1,
               }}
             >
               <span className="idn-mono text-xs font-bold leading-none">{cell.day}</span>
-              {!cell.isPast && cell.early && (
+              {cell.deliverable && cell.early && (
                 <span className="idn-mono text-[8px] leading-none" style={{ opacity: cell.isSelected ? 0.85 : 0.6 }}>
                   −{earlyBirdDiscount}%
                 </span>
@@ -676,9 +687,12 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
           </span>
           <span className="flex items-center gap-1">
             <span className="idn-hatch w-3 h-3 inline-block border" style={{ borderColor: 'var(--stamp)', borderStyle: 'dashed' }} />
-            입주일 도착 어려움
+            도착 어려움
           </span>
         </div>
+        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+          배송·설치는 매주 <strong style={{ color: 'var(--ink)', opacity: 0.8 }}>{DELIVERY_DAYS_LABEL}요일</strong>에 진행해요. 입주 주간에 맞는 날짜를 골라주세요.
+        </p>
       </div>
     </div>
   );

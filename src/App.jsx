@@ -2015,8 +2015,9 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
               </div>
               <div className="border" style={{ borderColor: 'var(--line)' }}>
                 {items.map((p, idx) => {
-                  const lowest = Math.round(p.basePrice * (1 - earlyBirdDiscount / 100));
-                  const margin = lowest > 0 ? Math.round(((lowest - p.cost) / lowest) * 100) : 0;
+                  const cost = p.cost ?? 0;
+                  const profit = p.basePrice - cost;
+                  const margin = p.basePrice > 0 ? Math.round((profit / p.basePrice) * 100) : 0;
                   return (
                     <div key={p.id} className={`flex items-center justify-between gap-2 p-2.5 ${idx > 0 ? 'border-t' : ''}`} style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
                       <div className="flex items-center gap-2 min-w-0">
@@ -2029,9 +2030,21 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                         )}
                         <div className="min-w-0">
                           <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
-                          <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                            {p.basePrice.toLocaleString('ko-KR')} → {lowest.toLocaleString('ko-KR')}
-                            <span style={{ color: margin >= 0 ? 'var(--ink)' : 'var(--stamp)' }}> (마진 {margin}%)</span>
+                          <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>
+                            <div className="flex gap-1.5">
+                              <span style={{ opacity: 0.5 }}>원가</span>
+                              <span>{(p.cost ?? 0).toLocaleString('ko-KR')}원</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <span style={{ opacity: 0.5 }}>판매가</span>
+                              <span className="font-bold">{p.basePrice.toLocaleString('ko-KR')}원</span>
+                            </div>
+                            <div className="flex gap-1.5 items-center">
+                              <span style={{ opacity: 0.5 }}>마진</span>
+                              <span className="font-bold" style={{ color: profit >= 0 ? (margin >= 12 ? 'var(--gold)' : 'var(--ink)') : 'var(--stamp)' }}>
+                                {profit.toLocaleString('ko-KR')}원 ({margin}%)
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>

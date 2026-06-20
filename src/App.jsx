@@ -115,6 +115,12 @@ function totalDiscountPct(earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) 
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
 }
+// 손님에게 보여줄 "배송·설치비" — 배송비 + (조립 필요 품목이면 설치비)
+function serviceFeeFor(product) {
+  const shipping = product.shippingFee || 0;
+  const install = product.needsInstall ? (product.installFee || 0) : 0;
+  return shipping + install;
+}
 const SITE_URL = 'https://dgagu.com';
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
 // 예약에 저장할 상품 정보는 사진(images/detailImages)을 빼고 화면표시에 필요한 것만 남겨요.
@@ -378,7 +384,7 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
   );
 }
 
-function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, installIncluded, packageImages, onAddAll, onViewDetail }) {
+function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, packageImages, onAddAll, onViewDetail }) {
   const [tier, setTier] = useState('basic'); // 'basic' | 'full'
   const name = packageNameFromRoomState(roomHas, tier);
   const packageImage = packageImages?.[packageKeyFromRoomState(roomHas, tier)];
@@ -406,8 +412,8 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
     .map((catId) => products.find((p) => p.id === selected[catId]) || defaultProductForCategory(products, catId))
     .filter(Boolean);
   const goodsTotal = items.reduce((s, p) => s + priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount), 0);
-  const installTotal = installIncluded ? items.reduce((s, p) => s + (p.needsInstall ? (p.installFee || 0) : 0), 0) : 0;
-  const total = goodsTotal + installTotal;
+  const serviceTotal = items.reduce((s, p) => s + serviceFeeFor(p), 0);
+  const total = goodsTotal + serviceTotal;
 
   return (
     <div className="border-2" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
@@ -485,7 +491,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                 </div>
                 {p.needsInstall && (
                   <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-                    {installIncluded ? '조립설치 필요 — 설치비는 합계에 포함돼요' : '조립설치 미포함 — 직접 조립 필요'}
+                    조립설치 포함 — 배송·설치비는 합계에 포함돼요
                   </div>
                 )}
                 {isOpen && (
@@ -536,8 +542,16 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between pt-2 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
-              <span>합계 {installIncluded && <span className="text-[10px] font-normal" style={{ opacity: 0.5 }}>(배송·조립·설치 포함)</span>}</span>
+            <div className="flex items-center justify-between pt-2 border-t text-[11px] mb-0.5" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}>
+              <span>가구 합계</span>
+              <span className="idn-mono">{won(goodsTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+              <span>배송·설치비</span>
+              <span className="idn-mono">{won(serviceTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1.5 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+              <span>총 합계</span>
               <span className="idn-display">{won(total)}</span>
             </div>
             <button
@@ -671,7 +685,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 }
 /* ---------------------------------------------------------------------- */
 
-function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, qtyInCart, onClick }) {
+function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick }) {
   const Icon = CAT_BY_ID[product.category].icon;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
@@ -718,9 +732,9 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
           ) : (
             <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</div>
           )}
-          {product.needsInstall && (
+          {serviceFeeFor(product) > 0 && (
             <div className="text-[9px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-              {installIncluded ? '조립설치 필요 — 설치비 별도 포함' : '조립설치 미포함'}
+              배송·설치비 별도
             </div>
           )}
         </div>
@@ -729,7 +743,7 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
   );
 }
 
-function CategorySection({ category, products, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, cart, onCardClick }) {
+function CategorySection({ category, products, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, cart, onCardClick }) {
   const Icon = category.icon;
   const items = products.filter((p) => p.category === category.id);
   return (
@@ -754,7 +768,6 @@ function CategorySection({ category, products, earlyBird, earlyBirdDiscount = 0,
               earlyBird={earlyBird}
               earlyBirdDiscount={earlyBirdDiscount}
               regionDiscount={regionDiscount}
-              installIncluded={installIncluded}
               qtyInCart={cart[p.id] || 0}
               onClick={() => onCardClick(p.id)}
             />
@@ -784,7 +797,7 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, installIncluded = true, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct }) {
+function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct }) {
   const filledImageIdx = (product.images || []).reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(filledImageIdx[0] ?? 0);
@@ -792,7 +805,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 
   const Icon = CAT_BY_ID[product.category].icon;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
-  const installFee = installIncluded && product.needsInstall ? (product.installFee || 0) : 0;
+  const serviceFee = serviceFeeFor(product);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
@@ -924,12 +937,12 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
           <div className="border" style={{ borderColor: 'var(--ink)' }}>
             <div className="flex items-center gap-2 px-3 py-2.5">
               {hasDiscount && <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.4 }}>{won(product.basePrice)}</span>}
-              <span className="idn-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>{won(price + installFee)}</span>
+              <span className="idn-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>{won(price + serviceFee)}</span>
               {hasDiscount && <span className="idn-seal w-9 h-9 text-[10px] ml-auto">−{discPct}%</span>}
             </div>
-            {product.needsInstall && (
+            {serviceFee > 0 && (
               <div className="flex items-center justify-between px-3 py-1.5 text-[11px] border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}>
-                <span>가구가 {won(price)} + 조립설치 {installIncluded ? won(installFee) : '미포함'}</span>
+                <span>가구가 {won(price)} + 배송·설치비 {won(serviceFee)}</span>
               </div>
             )}
             <div className="text-[11px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
@@ -952,7 +965,6 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
                 earlyBird={earlyBird}
                 earlyBirdDiscount={earlyBirdDiscount}
                 regionDiscount={regionDiscount}
-                installIncluded={installIncluded}
                 qtyInCart={cart[p.id] || 0}
                 onClick={() => onSelectProduct(p.id)}
               />
@@ -998,7 +1010,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 /* cart bar + reservation modal                                            */
 /* ---------------------------------------------------------------------- */
 
-function CartBar({ cartEntries, subtotal, total, savings, installFeeTotal = 0, hasDate, onReserve }) {
+function CartBar({ cartEntries, subtotal, total, savings, serviceFeeTotal = 0, hasDate, onReserve }) {
   if (cartEntries.length === 0) return null;
   const itemCount = cartEntries.reduce((s, e) => s + e.qty, 0);
   return (
@@ -1009,11 +1021,11 @@ function CartBar({ cartEntries, subtotal, total, savings, installFeeTotal = 0, h
             <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>
               {itemCount}개 담음
               {hasDate && savings > 0 && <span> · −{won(savings)} 절약</span>}
-              {installFeeTotal > 0 && <span> · 조립설치비 {won(installFeeTotal)} 포함</span>}
+              {serviceFeeTotal > 0 && <span> · 배송·설치비 {won(serviceFeeTotal)} 포함</span>}
             </div>
             <div className="flex items-baseline gap-1.5">
               {hasDate && savings > 0 && (
-                <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(subtotal + installFeeTotal)}</span>
+                <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(subtotal + serviceFeeTotal)}</span>
               )}
               <span className="idn-display text-xl font-bold" style={{ color: 'var(--ink)' }}>{won(total)}</span>
             </div>
@@ -1055,7 +1067,7 @@ function CopyMessageButton({ text, label, compact = false }) {
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, installFeeTotal = 0, installIncluded = true, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1084,7 +1096,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, installIncluded, installFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
+    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
@@ -1113,21 +1125,16 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                     <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
                   </div>
                 ))}
-                {installFeeTotal > 0 && (
+                {serviceFeeTotal > 0 && (
                   <div className="flex justify-between text-xs px-2.5 py-2 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
-                    <span>배송·조립·설치비</span>
-                    <span className="idn-mono font-bold">{won(installFeeTotal)}</span>
+                    <span>배송·설치비</span>
+                    <span className="idn-mono font-bold">{won(serviceFeeTotal)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-bold px-2.5 py-2 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
                   <span>합계</span>
                   <span className="idn-display">{won(total)}</span>
                 </div>
-                {!installIncluded && (
-                  <div className="px-2.5 py-1.5 text-[10px] border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
-                    조립설치 미포함 — 가구만 받고 직접 조립해요
-                  </div>
-                )}
               </div>
               {savings > 0 && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
@@ -1284,7 +1291,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const [addressDetail, setAddressDetail] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
-  const [installIncluded, setInstallIncluded] = useState(true); // 조립설치 서비스 포함 여부
   const [detailId, setDetailId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -1323,17 +1329,17 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const cartEntries = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((p) => p.id === id);
     const unitPrice = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
-    const unitInstallFee = installIncluded && product.needsInstall ? (product.installFee || 0) : 0;
+    const unitServiceFee = serviceFeeFor(product);
     return {
-      product, qty, unitPrice, unitInstallFee,
+      product, qty, unitPrice, unitServiceFee,
       lineBase: product.basePrice * qty,
-      lineTotal: (unitPrice + unitInstallFee) * qty,
+      lineTotal: (unitPrice + unitServiceFee) * qty,
     };
   });
   const subtotal = cartEntries.reduce((s, e) => s + e.lineBase, 0);
-  const installFeeTotal = cartEntries.reduce((s, e) => s + e.unitInstallFee * e.qty, 0);
+  const serviceFeeTotal = cartEntries.reduce((s, e) => s + e.unitServiceFee * e.qty, 0);
   const total = cartEntries.reduce((s, e) => s + e.lineTotal, 0);
-  const savings = subtotal - (total - installFeeTotal);
+  const savings = subtotal - (total - serviceFeeTotal);
 
   function handleReserve() {
     setModalOpen(true);
@@ -1357,7 +1363,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         earlyBird={earlyBird}
         earlyBirdDiscount={earlyBirdDiscount}
         regionDiscount={regionDiscount}
-        installIncluded={installIncluded}
         qtyInCart={cart[detailProduct.id] || 0}
         cart={cart}
         onUpdateCart={updateCart}
@@ -1535,23 +1540,11 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       </div>
 
       <div className="px-4 mt-3 space-y-3">
-        <div className="flex items-center justify-between border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
-          <div>
-            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 서비스</div>
-            <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              {installIncluded ? '입주일에 설치까지 끝난 상태로 받아요' : '가구만 받고 직접 조립해요'}
-            </div>
+        <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+          <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 포함</div>
+          <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+            기사님이 직접 배송하고, 조립·설치까지 끝낸 상태로 입주일에 받아요
           </div>
-          <button
-            onClick={() => setInstallIncluded((v) => !v)}
-            className="w-12 h-7 rounded-full flex-shrink-0 relative border transition-colors"
-            style={{ background: installIncluded ? 'var(--ink)' : 'var(--bg)', borderColor: 'var(--ink)' }}
-          >
-            <span
-              className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform"
-              style={{ background: installIncluded ? '#fff' : 'var(--ink)', transform: installIncluded ? 'translateX(20px)' : 'translateX(0)' }}
-            />
-          </button>
         </div>
         <PackageCard
           products={products}
@@ -1559,7 +1552,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           earlyBird={earlyBird}
           earlyBirdDiscount={earlyBirdDiscount}
           regionDiscount={regionDiscount}
-          installIncluded={installIncluded}
           packageImages={packageImages}
           onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
           onViewDetail={(pid) => setDetailId(pid)}
@@ -1603,7 +1595,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
             earlyBird={earlyBird}
             earlyBirdDiscount={earlyBirdDiscount}
             regionDiscount={regionDiscount}
-            installIncluded={installIncluded}
             cart={cart}
             onCardClick={(pid) => setDetailId(pid)}
           />
@@ -1615,7 +1606,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         )}
       </div>
 
-      <CartBar cartEntries={cartEntries} subtotal={subtotal} total={total} savings={savings} installFeeTotal={installFeeTotal} hasDate={!!moveInDate} onReserve={handleReserve} />
+      <CartBar cartEntries={cartEntries} subtotal={subtotal} total={total} savings={savings} serviceFeeTotal={serviceFeeTotal} hasDate={!!moveInDate} onReserve={handleReserve} />
       <ReservationModal
         open={modalOpen}
         onClose={handleModalClose}
@@ -1623,8 +1614,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         subtotal={subtotal}
         total={total}
         savings={savings}
-        installFeeTotal={installFeeTotal}
-        installIncluded={installIncluded}
+        serviceFeeTotal={serviceFeeTotal}
         moveInDate={moveInDate}
         earlyBird={earlyBird}
         earlyBirdDays={earlyBirdDays}
@@ -1665,6 +1655,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     detailImages: initial?.detailImages?.length ? [...initial.detailImages] : [],
     needsInstall: initial?.needsInstall ?? true,
     installFee: initial?.installFee ?? 15000,
+    shippingFee: initial?.shippingFee ?? 0,
   }));
 
   function set(field, value) {
@@ -1739,6 +1730,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       detailImages: form.detailImages,
       needsInstall: !!form.needsInstall,
       installFee: Number(form.installFee) || 0,
+      shippingFee: Number(form.shippingFee) || 0,
     });
   }
 
@@ -1853,6 +1845,13 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           </div>
         </div>
         <div>
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>배송비 (도매상 착불 등)</label>
+          <input type="number" value={form.shippingFee} onChange={(e) => set('shippingFee', e.target.value)}
+            placeholder="0"
+            className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님에겐 설치비와 합쳐 "배송·설치비"로 보여요. 마진 계산엔 원가로 반영돼요.</p>
+        </div>
+        <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
           <input type="number" step="0.1" min="0" max="5" value={form.rating} onChange={(e) => set('rating', e.target.value)}
             className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
@@ -1925,7 +1924,8 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         <div className="grid grid-cols-2 gap-1.5 p-2.5">
           {[{ label: '일반가', disc: 0 }, { label: `조기예약가 (−${earlyBirdDiscount}%)`, disc: earlyBirdDiscount }].map((t) => {
             const price = Math.round(form.basePrice * (1 - t.disc / 100));
-            const margin = price > 0 ? Math.round(((price - form.cost) / price) * 100) : 0;
+            const realCost = (Number(form.cost) || 0) + (Number(form.shippingFee) || 0);
+            const margin = price > 0 ? Math.round(((price - realCost) / price) * 100) : 0;
             return (
               <div key={t.label} className="text-center">
                 <div className="text-[10px] mb-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{t.label}</div>
@@ -1937,11 +1937,9 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
             );
           })}
         </div>
-        {form.needsInstall && (
-          <div className="text-[10px] px-2.5 pb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            ※ 위 가격은 가구만 기준이고, 조립설치 켜짐 옵션이면 +{Number(form.installFee || 0).toLocaleString('ko-KR')}원이 고객가에 더 붙어요(설치기사에게 전달되는 항목이라 마진 계산엔 포함 안 함)
-          </div>
-        )}
+        <div className="text-[10px] px-2.5 pb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+          ※ 마진은 배송비를 원가에 포함해서 계산했어요. 손님에겐 배송·설치비 {(((Number(form.shippingFee) || 0) + (form.needsInstall ? Number(form.installFee) || 0 : 0))).toLocaleString('ko-KR')}원이 가구가격에 더해져 보여요.
+        </div>
       </div>
 
       <div className="flex gap-2 mt-3">
@@ -2015,7 +2013,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
               </div>
               <div className="border" style={{ borderColor: 'var(--line)' }}>
                 {items.map((p, idx) => {
-                  const cost = p.cost ?? 0;
+                  const cost = (p.cost ?? 0) + (p.shippingFee || 0);
                   const profit = p.basePrice - cost;
                   const margin = p.basePrice > 0 ? Math.round((profit / p.basePrice) * 100) : 0;
                   return (
@@ -2032,8 +2030,13 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>
                             <div className="flex gap-1.5">
-                              <span style={{ opacity: 0.5 }}>원가</span>
+                              <span style={{ opacity: 0.5 }}>상품원가</span>
                               <span>{(p.cost ?? 0).toLocaleString('ko-KR')}원</span>
+                              {(p.shippingFee || 0) > 0 && <span style={{ opacity: 0.5 }}>+ 배송 {(p.shippingFee).toLocaleString('ko-KR')}</span>}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <span style={{ opacity: 0.5 }}>실원가</span>
+                              <span>{cost.toLocaleString('ko-KR')}원</span>
                             </div>
                             <div className="flex gap-1.5">
                               <span style={{ opacity: 0.5 }}>판매가</span>
@@ -2424,11 +2427,6 @@ function AdminReservations({ reservations, onUpdateStatus }) {
                     추천: {r.referralAgent}
                   </div>
                 )}
-                {r.installIncluded === false && (
-                  <div className="text-[11px] mb-1.5 inline-block px-1.5 py-0.5 border" style={{ borderColor: 'var(--stamp)', color: 'var(--stamp)' }}>
-                    ⚠ 조립설치 미포함 — 배송만
-                  </div>
-                )}
                 {r.address && (
                   <div className="flex items-start gap-1 text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>
                     <MapPin size={11} className="flex-shrink-0 mt-0.5" />
@@ -2809,7 +2807,7 @@ export default function App() {
     const payload = {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
-      installIncluded: r.installIncluded ?? true, installFeeTotal: r.installFeeTotal || 0,
+      serviceFeeTotal: r.serviceFeeTotal || 0,
       items: slimItemsForReservation(r.items), subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
     };

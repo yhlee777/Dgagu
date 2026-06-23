@@ -340,7 +340,7 @@ function ArrivalPromise({ moveInDate, earlyBirdDays, earlyBirdDiscount }) {
               </p>
               <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 border" style={{ borderColor: early ? 'var(--gold)' : 'var(--line)', background: early ? 'color-mix(in srgb, var(--gold) 12%, var(--surface))' : 'var(--bg)' }}>
                 <span className="text-[12px] font-bold" style={{ color: 'var(--ink)' }}>
-                  {early ? '조기예약 할인 적용중' : `${earlyBirdDays}일 전 예약하면 조기예약 할인`}
+                  {early ? '조기예약 할인 적용중' : `입주 ${earlyBirdDays}일 전에 예약하면 더 저렴해요`}
                 </span>
                 <span className="idn-mono text-base font-bold" style={{ color: early ? 'var(--stamp)' : 'var(--ink)', opacity: early ? 1 : 0.35 }}>
                   −{earlyBirdDiscount}%
@@ -791,7 +791,17 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
-  const related = allProducts.filter((p) => p.category === product.category && p.id !== product.id);
+  // 카트에 없는 카테고리 중 추천할 만한 것들 — 지금 보는 상품 카테고리는 제외
+  const cartCategories = new Set(
+    Object.keys(cart).map((id) => allProducts.find((p) => p.id === id)?.category).filter(Boolean)
+  );
+  cartCategories.add(product.category); // 지금 보는 상품 카테고리도 제외
+  const suggestOrder = ['bedframe', 'mattress', 'desk', 'chair', 'wardrobe', 'hanger'];
+  const related = suggestOrder
+    .filter((catId) => !cartCategories.has(catId))
+    .map((catId) => allProducts.find((p) => p.category === catId))
+    .filter(Boolean)
+    .slice(0, 4);
 
   function commit(newQty) {
     onUpdateCart(product.id, newQty);
@@ -933,7 +943,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       {related.length > 0 && (
         <div className="mt-6">
           <div className="idn-display font-bold text-sm px-4 pb-1.5 mb-2.5 border-b-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
-            함께 보면 좋은 상품
+            이런 것도 필요하지 않으세요?
           </div>
           <div className="idn-noscroll flex gap-2.5 overflow-x-auto pb-1 px-4">
             {related.map((p) => (
@@ -1389,9 +1399,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       {step === 'tone' && (
         <div className="px-4 pt-3 space-y-3">
           <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
-            <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>어떤 방을 원하세요?</h3>
+            <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>어떤 방에서 살고 싶으세요?</h3>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-              마음에 드는 분위기를 고르면, 그 톤에 맞춰 가구를 추천해드려요. 내 방을 직접 디자인하듯 골라보세요.
+              분위기를 고르면 그에 맞는 가구를 골라드려요. 내 방을 직접 고르는 거예요.
             </p>
           </div>
           {TONES.map((t) => (
@@ -1434,7 +1444,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         <div className="px-4 pt-3 space-y-3">
           <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
             <p className="text-[12.5px] leading-relaxed font-bold" style={{ color: 'var(--ink)' }}>
-              디자인과 내구성을 직접 확인하고 엄선한 가구만 입점시켜요.
+              직접 써보고 고른 가구만 들여요. 하자가 있으면 100% 교환·환불해드려요.
             </p>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.75 }}>
               제품 하자가 있으면 100% 교환 또는 환불해드려요.<br />
@@ -1480,7 +1490,6 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       {step === 'date' && (
         <div className="px-4 pt-3 space-y-3">
           <MoveInCalendar value={moveInDate} onChange={setMoveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
-          <ArrivalPromise moveInDate={moveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
           <div className="flex gap-2">
             <button
               onClick={() => setStep('shop')}

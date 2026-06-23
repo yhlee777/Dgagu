@@ -62,22 +62,20 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const TONES = [
   { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', desc: '화이트 + 그레이 + 우드 포인트. 깔끔하고 집중되는 공부방 무드.',
     tip: '책상·의자를 중심으로 한 집중 공간에 어울려요. 그레이 침구와 화이트 벽이 깔끔하게 맞아떨어져요.' },
-  { key: 'wood', label: '웜 우드', img: '/tones/warm-wood.jpg', desc: '따뜻한 우드 톤으로 아늑하게. 차분하고 안정적인 무드.',
-    tip: '우드 침대프레임이 공간의 중심이 돼요. 따뜻한 조명과 패브릭으로 아늑하게 완성돼요.' },
   { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', desc: '밝은 우드 + 화이트. 채광 좋은 감성적인 무드.',
     tip: '밝은 우드와 화이트로 채광을 살려요. 러그·소품 하나만 더해도 감성적인 방이 돼요.' },
 ];
 function toneByKey(key) {
   return TONES.find((t) => t.key === key) || null;
 }
-// 상품 톤이 선택한 톤에 맞는지 — 'all'은 항상, 'wood'는 우드계열(웜우드+스칸디) 공용
+// 상품 톤이 선택한 톤에 맞는지 — 'all'은 항상, 'wood'(오크)는 스칸디 공용
 function productMatchesTone(product, toneKey) {
   if (!toneKey) return true;
   const t = product.tone || 'grey';
   if (t === 'all') return true;
   if (t === toneKey) return true;
-  // 오크(우드) 가구는 웜우드/스칸디 둘 다 우드계열이라 함께 노출
-  if (t === 'wood' && (toneKey === 'wood' || toneKey === 'scandi')) return true;
+  // 오크 가구는 스칸디에서 노출
+  if (t === 'wood' && toneKey === 'scandi') return true;
   return false;
 }
 
@@ -1943,8 +1941,8 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           <div className="grid grid-cols-2 gap-1.5">
             {[
               { key: 'grey', label: '모던 그레이' },
-              { key: 'wood', label: '웜 우드 (우드계열)' },
               { key: 'scandi', label: '스칸디 미니멀' },
+              { key: 'wood', label: '오크 (스칸디 공용)' },
               { key: 'all', label: '어디나 어울림' },
             ].map((t) => (
               <button
@@ -1962,7 +1960,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </button>
             ))}
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '웜 우드'는 웜우드·스칸디 둘 다 노출, '어디나'는 모든 톤에 노출돼요.</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '오크(스칸디 공용)'는 스칸디 톤에 노출, '어디나'는 모든 톤에 노출돼요.</p>
         </div>
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
@@ -2143,7 +2141,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           <div className="flex items-center gap-1.5">
                             <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
                             <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
-                              {({ grey: '모던그레이', wood: '웜우드', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
+                              {({ grey: '모던그레이', wood: '오크(스칸디)', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
                             </span>
                           </div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>

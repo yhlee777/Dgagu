@@ -146,11 +146,9 @@ function totalDiscountPct(earlyBird, regionDiscount = 0, earlyBirdDiscount = 0) 
 function won(n) {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
 }
-// 손님에게 보여줄 "배송·설치비" — 배송비 + (조립 필요 품목이면 설치비)
-function serviceFeeFor(product) {
-  const shipping = product.shippingFee || 0;
-  const install = product.needsInstall ? (product.installFee || 0) : 0;
-  return shipping + install;
+// 판매가가 최종가격 — 배송·설치 포함. 별도 청구 없음.
+function serviceFeeFor(_product) {
+  return 0;
 }
 const SITE_URL = 'https://dgagu.com';
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
@@ -763,11 +761,7 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
           ) : (
             <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</div>
           )}
-          {serviceFeeFor(product) > 0 && (
-            <div className="text-[9px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-              배송·설치비 별도
-            </div>
-          )}
+
         </div>
       </div>
     </button>
@@ -802,7 +796,6 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 
   const Icon = CAT_BY_ID[product.category].icon;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
-  const serviceFee = serviceFeeFor(product);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
@@ -934,14 +927,10 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
           <div className="border" style={{ borderColor: 'var(--ink)' }}>
             <div className="flex items-center gap-2 px-3 py-2.5">
               {hasDiscount && <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.4 }}>{won(product.basePrice)}</span>}
-              <span className="idn-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>{won(price + serviceFee)}</span>
+              <span className="idn-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>{won(price)}</span>
               {hasDiscount && <span className="idn-seal w-9 h-9 text-[10px] ml-auto">−{discPct}%</span>}
             </div>
-            {serviceFee > 0 && (
-              <div className="flex items-center justify-between px-3 py-1.5 text-[11px] border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}>
-                <span>가구가 {won(price)} + 배송·설치비 {won(serviceFee)}</span>
-              </div>
-            )}
+
             <div className="text-[11px] text-center py-1.5 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.5 }}>
               {earlyBird == null ? '입주일을 정하면 가격이 확정돼요' : earlyBird ? '조기예약 할인이 적용된 가격이에요' : '입주 4주 이내 예약가예요'}
             </div>
@@ -1018,11 +1007,10 @@ function CartBar({ cartEntries, subtotal, total, savings, serviceFeeTotal = 0, h
             <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>
               {itemCount}개 담음
               {hasDate && savings > 0 && <span> · −{won(savings)} 절약</span>}
-              {serviceFeeTotal > 0 && <span> · 배송·설치비 {won(serviceFeeTotal)} 포함</span>}
             </div>
             <div className="flex items-baseline gap-1.5">
               {hasDate && savings > 0 && (
-                <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(subtotal + serviceFeeTotal)}</span>
+                <span className="idn-mono text-xs line-through" style={{ color: 'var(--ink)', opacity: 0.35 }}>{won(subtotal)}</span>
               )}
               <span className="idn-display text-xl font-bold" style={{ color: 'var(--ink)' }}>{won(total)}</span>
             </div>
@@ -1122,12 +1110,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                     <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
                   </div>
                 ))}
-                {serviceFeeTotal > 0 && (
-                  <div className="flex justify-between text-xs px-2.5 py-2 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.7 }}>
-                    <span>배송·설치비</span>
-                    <span className="idn-mono font-bold">{won(serviceFeeTotal)}</span>
-                  </div>
-                )}
+
                 <div className="flex justify-between text-sm font-bold px-2.5 py-2 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
                   <span>합계</span>
                   <span className="idn-display">{won(total)}</span>
@@ -1736,9 +1719,6 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     material: initial?.material || '',
     images: initial?.images?.length ? [...initial.images, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
     detailImages: initial?.detailImages?.length ? [...initial.detailImages] : [],
-    needsInstall: initial?.needsInstall ?? true,
-    installFee: initial?.installFee ?? 15000,
-    shippingFee: initial?.shippingFee ?? 0,
     tone: initial?.tone ?? 'grey',
   }));
 
@@ -1812,9 +1792,6 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       material: form.material.trim(),
       images: form.images,
       detailImages: form.detailImages,
-      needsInstall: !!form.needsInstall,
-      installFee: Number(form.installFee) || 0,
-      shippingFee: Number(form.shippingFee) || 0,
       tone: form.tone || 'grey',
     });
   }
@@ -1913,29 +1890,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           <input type="number" value={form.cost} onChange={(e) => set('cost', e.target.value)}
             className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
         </div>
-        <div>
-          <label className={labelCls} style={{ color: 'var(--ink)' }}>조립설치</label>
-          <div className="flex items-center gap-2 mt-0.5">
-            <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--ink)' }}>
-              <input type="checkbox" checked={form.needsInstall} onChange={(e) => set('needsInstall', e.target.checked)} />
-              조립 필요
-            </label>
-            {form.needsInstall && (
-              <input
-                type="number" value={form.installFee} onChange={(e) => set('installFee', e.target.value)}
-                placeholder="설치비"
-                className={`${inputCls} idn-mono flex-1`} style={{ borderColor: 'var(--line)' }}
-              />
-            )}
-          </div>
-        </div>
-        <div>
-          <label className={labelCls} style={{ color: 'var(--ink)' }}>배송비 (도매상 착불 등)</label>
-          <input type="number" value={form.shippingFee} onChange={(e) => set('shippingFee', e.target.value)}
-            placeholder="0"
-            className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님에겐 설치비와 합쳐 "배송·설치비"로 보여요. 마진 계산엔 원가로 반영돼요.</p>
-        </div>
+
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>어울리는 톤</label>
           <div className="grid grid-cols-2 gap-1.5">
@@ -1960,7 +1915,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </button>
             ))}
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '오크(스칸디 공용)'는 스칸디 톤에 노출, '어디나'는 모든 톤에 노출돼요.</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '웜 우드'는 웜우드·스칸디 둘 다 노출, '어디나'는 모든 톤에 노출돼요.</p>
         </div>
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
@@ -2035,7 +1990,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         <div className="grid grid-cols-2 gap-1.5 p-2.5">
           {[{ label: '일반가', disc: 0 }, { label: `조기예약가 (−${earlyBirdDiscount}%)`, disc: earlyBirdDiscount }].map((t) => {
             const price = Math.round(form.basePrice * (1 - t.disc / 100));
-            const realCost = (Number(form.cost) || 0) + (Number(form.shippingFee) || 0);
+            const realCost = Number(form.cost) || 0;
             const margin = price > 0 ? Math.round(((price - realCost) / price) * 100) : 0;
             return (
               <div key={t.label} className="text-center">
@@ -2049,7 +2004,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           })}
         </div>
         <div className="text-[10px] px-2.5 pb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          ※ 마진은 배송비를 원가에 포함해서 계산했어요. 손님에겐 배송·설치비 {(((Number(form.shippingFee) || 0) + (form.needsInstall ? Number(form.installFee) || 0 : 0))).toLocaleString('ko-KR')}원이 가구가격에 더해져 보여요.
+          ※ 판매가가 최종가격이에요. 도매가를 기준으로 마진율이 계산돼요.
         </div>
       </div>
 
@@ -2124,7 +2079,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
               </div>
               <div className="border" style={{ borderColor: 'var(--line)' }}>
                 {items.map((p, idx) => {
-                  const cost = (p.cost ?? 0) + (p.shippingFee || 0);
+                  const cost = p.cost ?? 0;
                   const profit = p.basePrice - cost;
                   const margin = p.basePrice > 0 ? Math.round((profit / p.basePrice) * 100) : 0;
                   return (
@@ -2146,12 +2101,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           </div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>
                             <div className="flex gap-1.5">
-                              <span style={{ opacity: 0.5 }}>상품원가</span>
-                              <span>{(p.cost ?? 0).toLocaleString('ko-KR')}원</span>
-                              {(p.shippingFee || 0) > 0 && <span style={{ opacity: 0.5 }}>+ 배송 {(p.shippingFee).toLocaleString('ko-KR')}</span>}
-                            </div>
-                            <div className="flex gap-1.5">
-                              <span style={{ opacity: 0.5 }}>실원가</span>
+                              <span style={{ opacity: 0.5 }}>도매가</span>
                               <span>{cost.toLocaleString('ko-KR')}원</span>
                             </div>
                             <div className="flex gap-1.5">

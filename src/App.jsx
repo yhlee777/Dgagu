@@ -43,6 +43,29 @@ const EARLYBIRD_DISCOUNT_DEFAULT = 6;  // 조기예약 할인 %
 const PEAK_MONTHS = [1, 7];            // 성수기 — 2월(1), 8월(7) — 0-indexed
 const PEAK_LEAD_DAYS = 42;             // 성수기 마감 기준 (6주)
 const MIN_LEAD_DAYS = 7;               // 입주일 당일배송 보장을 위한 최소 리드타임 (발주~도착 평균 소요일 이상 남아야 당일 보장 가능)
+const GUARANTEE_BDAYS = 10;            // 완성 보장 기준 영업일
+
+// 오늘부터 dateStr까지 영업일(주말 제외) 수 계산
+function businessDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr + 'T00:00:00');
+  if (target <= today) return 0;
+  let count = 0;
+  const cur = new Date(today);
+  cur.setDate(cur.getDate() + 1);
+  while (cur <= target) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+function isGuaranteed(dateStr) {
+  const bdays = businessDaysUntil(dateStr);
+  return bdays != null && bdays >= GUARANTEE_BDAYS;
+}
 const AVG_LEAD_DAYS = 7;               // 발주 시점부터 평균 도착까지 걸리는 일수 (도매상 리드타임 기준) — 임박 예약 시 예상 도착일 계산에 사용
 const REGION_GAUGE_MIN_COUNT = 3;      // 이 인원 이상 모여야 지역 게이지 노출
 
@@ -631,11 +654,14 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
     <div className="border" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--ink)' }}>
-          <Calendar size={15} /> 입주 예정일
+          <Calendar size={15} /> 배송 완성 희망일
         </span>
         {value ? (
-          <span className="idn-mono text-xs font-bold px-2 py-1 border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
-            {value.slice(5).replace('-', '/')} 선택됨
+          <span className="idn-mono text-xs font-bold px-2 py-1 border" style={{
+            borderColor: isGuaranteed(value) ? 'var(--gold)' : 'var(--stamp)',
+            color: isGuaranteed(value) ? 'var(--gold)' : 'var(--stamp)'
+          }}>
+            {value.slice(5).replace('-', '/')} {isGuaranteed(value) ? '✓ 완성보장' : '완성보장 어려움'}
           </span>
         ) : (
           <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.4 }}>날짜를 탭하세요</span>
@@ -693,7 +719,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 
         </div>
         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          가구마다 순차적으로 배송돼요. 입주 예정일을 기준으로 전후로 순서대로 들어와요.
+          가구마다 순차적으로 배송돼요. 희망일 기준 영업일 10일 이상 남으면 그 날까지 완성을 보장해요.
         </p>
       </div>
     </div>
@@ -1528,7 +1554,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
               className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
               style={{ background: 'var(--ink)', color: '#fff' }}
             >
-              이 날짜로 선택
+              이 날짜로 설정
             </button>
           </div>
         </div>
@@ -1590,7 +1616,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
-          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '입주 예정일 선택'}
+          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송 완성 희망일 선택'}
         </button>
         {fullAddress && (
           <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>

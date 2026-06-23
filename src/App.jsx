@@ -1304,7 +1304,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     const pkgCats = packageCategoriesFromRoomState(roomHas);
     const allCatIds = CATEGORIES.map((c) => c.id);
     const extraChecked = Object.fromEntries(
-      allCatIds.filter((id) => !pkgCats[id]).map((id) => [id, false])
+      allCatIds.filter((id) => !pkgCats[id]).map((id) => [id, true])
     );
     setChecked(extraChecked);
     setStep('shop');

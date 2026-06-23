@@ -1300,7 +1300,13 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     });
   }
   function handleRoomNext() {
-    setChecked(packageCategoriesFromRoomState(roomHas));
+    // 패키지에 이미 들어가는 카테고리는 하단 목록에서 제외 — 나머지만 기본 체크
+    const pkgCats = packageCategoriesFromRoomState(roomHas);
+    const allCatIds = CATEGORIES.map((c) => c.id);
+    const extraChecked = Object.fromEntries(
+      allCatIds.filter((id) => !pkgCats[id]).map((id) => [id, false])
+    );
+    setChecked(extraChecked);
     setStep('shop');
   }
 

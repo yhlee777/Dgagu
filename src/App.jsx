@@ -49,10 +49,8 @@ const REGION_GAUGE_MIN_COUNT = 3;      // 이 인원 이상 모여야 지역 게
 // 배송·설치 가능 요일 — 트럭 대여를 모아서 효율적으로 돌기 위해 주 2회로 고정 (화=2, 토=6)
 const DELIVERY_WEEKDAYS = [2, 6];
 const DELIVERY_DAYS_LABEL = '화·토';
-function isDeliveryDay(dateStr) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr + 'T00:00:00');
-  return DELIVERY_WEEKDAYS.includes(d.getDay());
+function isDeliveryDay(_dateStr) {
+  return true; // 순차배송 — 요일 제한 없음
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -245,8 +243,8 @@ function dDayLabel(days) {
 // 예약 진행 단계 — 발주~설치까지 운영자가 순서대로 넘기는 상태값
 const ORDER_STATUSES = [
   { key: 'received', label: '예약접수' },
-  { key: 'ordered', label: '발주완료' },
-  { key: 'stocked', label: '재고확보' },
+  { key: 'ordered', label: '제작중' },
+  { key: 'stocked', label: '제작완료' },
   { key: 'shipping', label: '배송중' },
   { key: 'installed', label: '설치완료' },
 ];
@@ -633,7 +631,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
     <div className="border" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--ink)' }}>
-          <Calendar size={15} /> 배송·설치일 <span className="text-[10px] font-normal" style={{ opacity: 0.5 }}>({DELIVERY_DAYS_LABEL}만 가능)</span>
+          <Calendar size={15} /> 입주 예정일
         </span>
         {value ? (
           <span className="idn-mono text-xs font-bold px-2 py-1 border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
@@ -692,13 +690,10 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
             <span className="w-3 h-3 inline-block border" style={{ borderColor: 'var(--stamp)' }} />
             성수기 마감임박
           </span>
-          <span className="flex items-center gap-1">
-            <span className="idn-hatch w-3 h-3 inline-block border" style={{ borderColor: 'var(--stamp)', borderStyle: 'dashed' }} />
-            도착 어려움
-          </span>
+
         </div>
         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          배송·설치는 매주 <strong style={{ color: 'var(--ink)', opacity: 0.8 }}>{DELIVERY_DAYS_LABEL}요일</strong>에 진행해요. 입주 주간에 맞는 날짜를 골라주세요.
+          가구마다 순차적으로 배송돼요. 입주 예정일을 기준으로 전후로 순서대로 들어와요.
         </p>
       </div>
     </div>
@@ -1058,6 +1053,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
+  const [addressDetail, setAddressDetail] = useState('');
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1083,12 +1079,12 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    onSubmit({ name, phone, address, moveInDate, earlyBird, roomHas, referralAgent, serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
+    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setDone(false); setOrderId(null); setShared(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setDone(false); setOrderId(null); setShared(false); onClose();
   }
 
   return (
@@ -1168,8 +1164,30 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                   <label className="text-xs font-bold flex items-center gap-1 mb-1" style={{ color: 'var(--ink)' }}>
                     <MapPin size={13} /> 배송 주소
                   </label>
-                  <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="예: 서울시 ○○구 ○○로 12, ○○빌라 101동 502호"
-                    rows={2} className="w-full border px-3 py-2 text-sm resize-none" style={{ borderColor: 'var(--line)' }} />
+                  {address ? (
+                    <div className="flex items-center justify-between border px-3 py-2 mb-1.5" style={{ borderColor: 'var(--line)' }}>
+                      <span className="text-sm" style={{ color: 'var(--ink)' }}>{address}</span>
+                      <button type="button" onClick={() => openAddressSearch((data) => { setAddress(data.roadAddress || data.jibunAddress || data.address); setAddressDetail(''); })} className="flex-shrink-0 text-[11px] font-bold underline ml-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>변경</button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openAddressSearch((data) => { setAddress(data.roadAddress || data.jibunAddress || data.address); setAddressDetail(''); })}
+                      className="w-full flex items-center justify-center gap-1.5 border-2 py-2.5 font-bold text-sm mb-1.5"
+                      style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+                    >
+                      <Search size={14} /> 주소 검색
+                    </button>
+                  )}
+                  {address && (
+                    <input
+                      value={addressDetail}
+                      onChange={(e) => setAddressDetail(e.target.value)}
+                      placeholder="동/호수 등 상세주소 (예: 101동 502호)"
+                      className="w-full border px-3 py-2 text-sm"
+                      style={{ borderColor: 'var(--line)' }}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1450,11 +1468,11 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         <div className="px-4 pt-3 space-y-3">
           <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
             <p className="text-[12.5px] leading-relaxed font-bold" style={{ color: 'var(--ink)' }}>
-              직접 써보고 고른 가구만 들여요. 하자가 있으면 100% 교환·환불해드려요.
+              직접 써보고 고른 가구만 들여요.
             </p>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.75 }}>
-              제품 하자가 있으면 100% 교환 또는 환불해드려요.<br />
-              입주일에 맞춰 설치까지 책임지고 끝내드릴게요.
+              제품 하자·불량은 100% 교환 또는 환불 보장해요.<br />
+              조립·설치까지 완료된 상태로 받아요.
             </p>
           </div>
           <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
@@ -1572,7 +1590,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
-          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송일 선택'}
+          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '입주 예정일 선택'}
         </button>
         {fullAddress && (
           <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
@@ -1598,9 +1616,12 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           </div>
         )}
         <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
-          <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 포함</div>
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>조립·설치 포함 — 순차 배송</div>
+            <div className="text-[10px] font-bold px-1.5 py-0.5" style={{ background: 'var(--stamp)', color: '#fff' }}>하자 100% 보장</div>
+          </div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            기사님이 직접 배송하고, 조립·설치까지 끝낸 상태로 받아요
+            가구마다 순서대로 배송·설치돼요. 불량이면 100% 교환 또는 환불해드려요.
           </div>
         </div>
         <PackageCard
@@ -2581,8 +2602,7 @@ function AdminOrders({ reservations }) {
   return (
     <div className="space-y-3">
       <p className="text-xs" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-        같은 입주 주간(월~일)에 들어온 예약을 상품별로 합산했어요. 예약 확정 즉시 발주하는 걸 기본으로 하고,
-        리드타임을 고려해 입주일 전까지 받을 수 있게 일정을 맞추세요.
+        같은 입주 주간(월~일)에 들어온 예약을 상품별로 합산했어요. 입주일 전까지 순차 배송될 수 있게 일정을 맞추세요.
       </p>
       {weekKeys.map((wk) => {
         const { items, reservationCount } = byWeek[wk];
@@ -2683,8 +2703,8 @@ function OrderLookup({ orderId, reservations, loaded }) {
           </div>
           <p className="text-[12px] leading-relaxed mt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>
             {status === 'received' && '예약이 접수됐어요. 곧 발주를 진행할게요.'}
-            {status === 'ordered' && '공급사에 발주를 넣었어요. 입고를 기다리고 있어요.'}
-            {status === 'stocked' && '상품이 입고됐어요. 배송·설치 일정을 준비하고 있어요.'}
+            {status === 'ordered' && '주문 제작이 시작됐어요. 완료되는 대로 바로 배송 준비할게요.'}
+            {status === 'stocked' && '제작이 완료됐어요. 곧 배송 기사님이 연락드릴 거예요.'}
             {status === 'shipping' && '배송이 시작됐어요. 입주 전날 설치기사님이 방문 시간을 전화로 안내드려요.'}
             {status === 'installed' && '설치까지 완료됐어요. 새로운 공간에서 좋은 시간 보내세요!'}
           </p>

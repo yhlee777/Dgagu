@@ -566,15 +566,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between pt-2 border-t text-[11px] mb-0.5" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}>
-              <span>가구 합계</span>
-              <span className="idn-mono">{won(goodsTotal)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[11px] mb-1.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-              <span>배송·설치비</span>
-              <span className="idn-mono">{won(serviceTotal)}</span>
-            </div>
-            <div className="flex items-center justify-between pt-1.5 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+            <div className="flex items-center justify-between pt-2 border-t font-bold text-sm mb-2" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
               <span>총 합계</span>
               <span className="idn-display">{won(total)}</span>
             </div>

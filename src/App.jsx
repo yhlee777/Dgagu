@@ -57,6 +57,20 @@ function isDeliveryDay(dateStr) {
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+// 시작 화면 — 손님이 방 분위기(톤)를 먼저 고르게 해서 "내 방을 디자인한다"는 경험을 줘요.
+// 톤은 분위기 큐레이션용이고, 실제 담기는 가구는 같은 라인업이에요(구성으로 분위기 표현).
+const TONES = [
+  { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', desc: '화이트 + 그레이 + 우드 포인트. 깔끔하고 집중되는 공부방 무드.',
+    tip: '책상·의자를 중심으로 한 집중 공간에 어울려요. 그레이 침구와 화이트 벽이 깔끔하게 맞아떨어져요.' },
+  { key: 'wood', label: '웜 우드', img: '/tones/warm-wood.jpg', desc: '따뜻한 우드 톤으로 아늑하게. 차분하고 안정적인 무드.',
+    tip: '우드 침대프레임이 공간의 중심이 돼요. 따뜻한 조명과 패브릭으로 아늑하게 완성돼요.' },
+  { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', desc: '밝은 우드 + 화이트. 채광 좋은 감성적인 무드.',
+    tip: '밝은 우드와 화이트로 채광을 살려요. 러그·소품 하나만 더해도 감성적인 방이 돼요.' },
+];
+function toneByKey(key) {
+  return TONES.find((t) => t.key === key) || null;
+}
+
 function isoDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
@@ -1298,7 +1312,8 @@ function defaultProductForCategory(products, catId) {
 }
 
 function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, onAddReservation }) {
-  const [step, setStep] = useState('room'); // 'room' | 'date' | 'address' | 'shop'
+  const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'address' | 'shop'
+  const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
   const [moveInDate, setMoveInDate] = useState('');
   const [address, setAddress] = useState('');
@@ -1325,7 +1340,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   }
   function handleRoomNext() {
     setChecked(packageCategoriesFromRoomState(roomHas));
-    setStep('date');
+    setStep('shop');
   }
 
   function toggleCategory(catId) {
@@ -1356,6 +1371,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const savings = subtotal - (total - serviceFeeTotal);
 
   function handleReserve() {
+    if (!moveInDate) { setStep('date'); return; }
     setModalOpen(true);
   }
   async function handleSubmitReservation(payload) {
@@ -1390,12 +1406,12 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     <div className="pb-32">
       <div className="px-4 pt-3 flex items-center justify-center gap-1">
         {[
+          { id: 'tone', label: '톤' },
           { id: 'room', label: '방 상태' },
-          { id: 'date', label: '입주일' },
-          { id: 'address', label: '배송지' },
+          { id: 'date', label: '배송일' },
           { id: 'shop', label: '가구선택' },
         ].map((s, i) => {
-          const order = { room: 0, date: 1, address: 2, shop: 3 };
+          const order = { tone: 0, room: 1, date: 1, address: 2, shop: 3 };
           const active = order[step] === i;
           const done = order[step] > i;
           return (
@@ -1418,6 +1434,50 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           );
         })}
       </div>
+
+      {step === 'tone' && (
+        <div className="px-4 pt-3 space-y-3">
+          <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+            <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>어떤 방을 원하세요?</h3>
+            <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+              마음에 드는 분위기를 고르면, 그 톤에 맞춰 가구를 추천해드려요. 내 방을 직접 디자인하듯 골라보세요.
+            </p>
+          </div>
+          {TONES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setSelectedTone(t.key)}
+              className="block w-full text-left border overflow-hidden"
+              style={{
+                borderColor: selectedTone === t.key ? 'var(--ink)' : 'var(--line)',
+                borderWidth: selectedTone === t.key ? '2px' : '1px',
+                background: 'var(--surface)',
+              }}
+            >
+              <div className="relative">
+                <img src={t.img} alt={t.label} className="w-full h-40 object-cover" style={{ display: 'block' }} />
+                {selectedTone === t.key && (
+                  <div className="absolute top-2 right-2 idn-seal w-7 h-7 text-[9px]" style={{ background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }}>선택</div>
+                )}
+              </div>
+              <div className="px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>{t.label}</span>
+                </div>
+                <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.6 }}>{t.desc}</p>
+              </div>
+            </button>
+          ))}
+          <button
+            onClick={() => setStep('room')}
+            disabled={!selectedTone}
+            className="w-full py-3 font-bold text-sm disabled:opacity-30"
+            style={{ background: 'var(--ink)', color: '#fff' }}
+          >
+            {selectedTone ? `${TONES.find((t) => t.key === selectedTone).label}로 시작하기` : '톤을 선택해주세요'}
+          </button>
+        </div>
+      )}
 
       {step === 'room' && (
         <div className="px-4 pt-3 space-y-3">
@@ -1461,7 +1521,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
             className="w-full py-3 font-bold text-sm disabled:opacity-30"
             style={{ background: 'var(--ink)', color: '#fff' }}
           >
-            다음 — 입주일 선택
+            다음 — 가구 선택
           </button>
         </div>
       )}
@@ -1472,19 +1532,19 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           <ArrivalPromise moveInDate={moveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
           <div className="flex gap-2">
             <button
-              onClick={() => setStep('room')}
+              onClick={() => setStep('shop')}
               className="flex-shrink-0 px-4 py-3 font-bold text-sm border-2"
               style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
             >
               이전
             </button>
             <button
-              onClick={() => setStep('address')}
+              onClick={() => setStep('shop')}
               disabled={!moveInDate}
               className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
               style={{ background: 'var(--ink)', color: '#fff' }}
             >
-              다음 — 배송지 입력
+              이 날짜로 선택
             </button>
           </div>
         </div>
@@ -1545,19 +1605,36 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       {step === 'shop' && (
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-        <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
-          <Calendar size={12} /> {moveInDate} 변경
+        <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
+          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송일 선택'}
         </button>
-        <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
-          <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{fullAddress}</span>
-        </button>
+        {fullAddress && (
+          <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
+            <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{fullAddress}</span>
+          </button>
+        )}
       </div>
 
       <div className="px-4 mt-3 space-y-3">
+        {selectedTone && toneByKey(selectedTone) && (
+          <div className="border overflow-hidden" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+            <div className="flex items-stretch">
+              <img src={toneByKey(selectedTone).img} alt={toneByKey(selectedTone).label} className="w-24 h-24 object-cover flex-shrink-0" style={{ display: 'block' }} />
+              <div className="px-3 py-2 flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5" style={{ background: 'var(--gold)', color: '#fff' }}>선택한 톤</span>
+                  <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>{toneByKey(selectedTone).label}</span>
+                </div>
+                <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.65 }}>{toneByKey(selectedTone).tip}</p>
+                <button onClick={() => setStep('tone')} className="text-[10px] mt-1 underline" style={{ color: 'var(--ink)', opacity: 0.5 }}>톤 바꾸기</button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
           <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>배송·조립·설치 포함</div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            기사님이 직접 배송하고, 조립·설치까지 끝낸 상태로 입주일에 받아요
+            기사님이 직접 배송하고, 조립·설치까지 끝낸 상태로 받아요
           </div>
         </div>
         <PackageCard

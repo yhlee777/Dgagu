@@ -460,14 +460,14 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
         ))}
       </div>
       {packageImage && (
-        <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-44 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
+        <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-32 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
       )}
       <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
         <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
         <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>마음에 안 들면 바꿔보세요</span>
       </div>
       <div className="px-3 py-2.5">
-        <div className="space-y-1.5 mb-2">
+        <div className="space-y-1 mb-2">
           {items.map((p) => {
             const Icon = CAT_BY_ID[p.category].icon;
             const alternatives = products.filter((alt) => alt.category === p.category);
@@ -481,10 +481,10 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                     className="flex items-center gap-1.5 min-w-0 text-left"
                     style={{ color: 'var(--ink)', opacity: 0.75 }}
                   >
-                    <span className="flex-shrink-0 w-8 h-8 border overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
+                    <span className="flex-shrink-0 w-7 h-7 border overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
                       {thumb
                         ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-                        : <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.4 }} />
+                        : <Icon size={13} style={{ color: 'var(--ink)', opacity: 0.4 }} />
                       }
                     </span>
                     <span className="truncate underline" style={{ textDecorationColor: 'var(--line)' }}>{p.name}</span>
@@ -512,11 +512,6 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                     </button>
                   </span>
                 </div>
-                {p.needsInstall && (
-                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-                    조립설치 포함 — 배송·설치비는 합계에 포함돼요
-                  </div>
-                )}
                 {isOpen && (
                   <div className="mt-1 mb-1.5 ml-4 space-y-1 border-l pl-2" style={{ borderColor: 'var(--line)' }}>
                     {alternatives.map((alt) => {
@@ -713,7 +708,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 }
 /* ---------------------------------------------------------------------- */
 
-function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick }) {
+function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick, fullWidth = false }) {
   const Icon = CAT_BY_ID[product.category].icon;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
@@ -721,7 +716,7 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
   return (
     <button
       onClick={onClick}
-      className="relative flex-shrink-0 w-36 sm:w-44 text-left border overflow-hidden"
+      className={`relative text-left border overflow-hidden ${fullWidth ? 'w-full' : 'flex-shrink-0 w-36 sm:w-44'}`}
       style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}
     >
       {product.images?.[0] ? (
@@ -771,40 +766,6 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
   );
 }
 
-function CategorySection({ category, products, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, cart, onCardClick }) {
-  const Icon = category.icon;
-  const items = products.filter((p) => p.category === category.id);
-  return (
-    <div className="mt-5">
-      <div className="flex items-center justify-between px-0.5 mb-2">
-        <div className="flex items-center gap-1.5">
-          <Icon size={15} style={{ color: 'var(--ink)' }} />
-          <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>{category.label}</span>
-        </div>
-        <span className="idn-mono text-[10px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>{items.length}종</span>
-      </div>
-      {items.length === 0 ? (
-        <div className="border p-4 text-center text-sm" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
-          상품 준비중 — 관리자에서 등록해주세요
-        </div>
-      ) : (
-        <div className="idn-noscroll flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
-          {items.map((p) => (
-            <ProductCard
-              key={p.id}
-              product={p}
-              earlyBird={earlyBird}
-              earlyBirdDiscount={earlyBirdDiscount}
-              regionDiscount={regionDiscount}
-              qtyInCart={cart[p.id] || 0}
-              onClick={() => onCardClick(p.id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ---------------------------------------------------------------------- */
 /* small section helper                                                    */
@@ -1678,23 +1639,38 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       </div>
 
       <div className="px-4">
-        {CATEGORIES.filter((c) => checked[c.id]).map((c) => (
-          <CategorySection
-            key={c.id}
-            category={c}
-            products={products}
-            earlyBird={earlyBird}
-            earlyBirdDiscount={earlyBirdDiscount}
-            regionDiscount={regionDiscount}
-            cart={cart}
-            onCardClick={(pid) => setDetailId(pid)}
-          />
-        ))}
-        {CATEGORIES.every((c) => !checked[c.id]) && (
-          <div className="mt-6 text-center text-sm py-8 border" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
-            위에서 가구 종류를 체크하면<br />상품 추천이 여기에 떠요
-          </div>
-        )}
+        {(() => {
+          const browseItems = products.filter((p) => checked[p.category]);
+          if (browseItems.length === 0) {
+            return (
+              <div className="mt-6 text-center text-sm py-8 border" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
+                위에서 가구 종류를 체크하면<br />상품이 여기에 떠요
+              </div>
+            );
+          }
+          return (
+            <div className="mt-5">
+              <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                <LayoutGrid size={15} style={{ color: 'var(--ink)' }} />
+                <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>가구 하나씩 보기</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {browseItems.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    earlyBird={earlyBird}
+                    earlyBirdDiscount={earlyBirdDiscount}
+                    regionDiscount={regionDiscount}
+                    qtyInCart={cart[p.id] || 0}
+                    onClick={() => setDetailId(p.id)}
+                    fullWidth
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <CartBar cartEntries={cartEntries} subtotal={subtotal} total={total} savings={savings} serviceFeeTotal={serviceFeeTotal} hasDate={!!moveInDate} onReserve={handleReserve} />

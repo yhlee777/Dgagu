@@ -1719,6 +1719,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     material: initial?.material || '',
     images: initial?.images?.length ? [...initial.images, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
     detailImages: initial?.detailImages?.length ? [...initial.detailImages] : [],
+    shippingFee: initial?.shippingFee ?? 0,
     tone: initial?.tone ?? 'grey',
   }));
 
@@ -1792,6 +1793,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       material: form.material.trim(),
       images: form.images,
       detailImages: form.detailImages,
+      shippingFee: Number(form.shippingFee) || 0,
       tone: form.tone || 'grey',
     });
   }
@@ -1889,6 +1891,13 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           <label className={labelCls} style={{ color: 'var(--ink)' }}>도매가/원가</label>
           <input type="number" value={form.cost} onChange={(e) => set('cost', e.target.value)}
             className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
+        </div>
+        <div>
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>배송비 (참고용)</label>
+          <input type="number" value={form.shippingFee} onChange={(e) => set('shippingFee', e.target.value)}
+            placeholder="0"
+            className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님 청구 없음. 원가 파악용으로만 기록해요.</p>
         </div>
 
         <div>
@@ -2103,6 +2112,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                             <div className="flex gap-1.5">
                               <span style={{ opacity: 0.5 }}>도매가</span>
                               <span>{cost.toLocaleString('ko-KR')}원</span>
+                              {(p.shippingFee || 0) > 0 && <span style={{ opacity: 0.45 }}>+ 배송 {(p.shippingFee).toLocaleString('ko-KR')}</span>}
                             </div>
                             <div className="flex gap-1.5">
                               <span style={{ opacity: 0.5 }}>판매가</span>

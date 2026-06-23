@@ -70,6 +70,16 @@ const TONES = [
 function toneByKey(key) {
   return TONES.find((t) => t.key === key) || null;
 }
+// 상품 톤이 선택한 톤에 맞는지 — 'all'은 항상, 'wood'는 우드계열(웜우드+스칸디) 공용
+function productMatchesTone(product, toneKey) {
+  if (!toneKey) return true;
+  const t = product.tone || 'grey';
+  if (t === 'all') return true;
+  if (t === toneKey) return true;
+  // 오크(우드) 가구는 웜우드/스칸디 둘 다 우드계열이라 함께 노출
+  if (t === 'wood' && (toneKey === 'wood' || toneKey === 'scandi')) return true;
+  return false;
+}
 
 function isoDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -407,12 +417,12 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
   );
 }
 
-function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, packageImages, onAddAll, onViewDetail }) {
+function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, packageImages, selectedTone, onAddAll, onViewDetail }) {
   const [tier, setTier] = useState('basic'); // 'basic' | 'full'
   const name = packageNameFromRoomState(roomHas, tier);
   const packageImage = packageImages?.[packageKeyFromRoomState(roomHas, tier)];
   const catIds = Object.keys(packageCategoriesFromRoomState(roomHas, tier));
-  const defaultItems = catIds.map((id) => defaultProductForCategory(products, id)).filter(Boolean);
+  const defaultItems = catIds.map((id) => defaultProductForCategory(products, id, selectedTone)).filter(Boolean);
 
   // catId -> 선택된 productId (초기값은 기본 추천 상품)
   const [selected, setSelected] = useState(() =>
@@ -426,13 +436,13 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
     setSelected(Object.fromEntries(defaultItems.map((p) => [p.category, p.id])));
     setOpenCat(null);
     setRemovedCats(new Set());
-  }, [catIds.join(','), tier]);
+  }, [catIds.join(','), tier, selectedTone]);
 
   if (defaultItems.length === 0) return null;
 
   const items = catIds
     .filter((catId) => !removedCats.has(catId))
-    .map((catId) => products.find((p) => p.id === selected[catId]) || defaultProductForCategory(products, catId))
+    .map((catId) => products.find((p) => p.id === selected[catId]) || defaultProductForCategory(products, catId, selectedTone))
     .filter(Boolean);
   const goodsTotal = items.reduce((s, p) => s + priceFor(p, earlyBird, regionDiscount, earlyBirdDiscount), 0);
   const serviceTotal = items.reduce((s, p) => s + serviceFeeFor(p), 0);
@@ -470,7 +480,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
         <div className="space-y-1 mb-2">
           {items.map((p) => {
             const Icon = CAT_BY_ID[p.category].icon;
-            const alternatives = products.filter((alt) => alt.category === p.category);
+            const alternatives = products.filter((alt) => alt.category === p.category && productMatchesTone(alt, selectedTone));
             const isOpen = openCat === p.category;
             const thumb = p.images?.[0];
             return (
@@ -1266,9 +1276,16 @@ function packageKeyFromRoomState(roomHas, tier = 'basic') {
   return 'starter';
 }
 // 카테고리별 "기본형" 대표 상품 — 고민 없이 우리가 고른 추천 구성
-function defaultProductForCategory(products, catId) {
+function defaultProductForCategory(products, catId, toneKey = null) {
   const items = products.filter((p) => p.category === catId);
   if (items.length === 0) return null;
+  // 톤이 선택됐으면 그 톤에 맞는 상품을 우선 추천
+  if (toneKey) {
+    const toneMatch = items.find((p) => productMatchesTone(p, toneKey) && (p.tone || 'grey') !== 'all');
+    if (toneMatch) return toneMatch;
+    const anyMatch = items.find((p) => productMatchesTone(p, toneKey));
+    if (anyMatch) return anyMatch;
+  }
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
@@ -1605,6 +1622,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           earlyBirdDiscount={earlyBirdDiscount}
           regionDiscount={regionDiscount}
           packageImages={packageImages}
+          selectedTone={selectedTone}
           onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
           onViewDetail={(pid) => setDetailId(pid)}
         />
@@ -1640,7 +1658,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
 
       <div className="px-4">
         {(() => {
-          const browseItems = products.filter((p) => checked[p.category]);
+          const browseItems = products.filter((p) => checked[p.category] && productMatchesTone(p, selectedTone));
           if (browseItems.length === 0) {
             return (
               <div className="mt-6 text-center text-sm py-8 border" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
@@ -1723,6 +1741,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     needsInstall: initial?.needsInstall ?? true,
     installFee: initial?.installFee ?? 15000,
     shippingFee: initial?.shippingFee ?? 0,
+    tone: initial?.tone ?? 'grey',
   }));
 
   function set(field, value) {
@@ -1798,6 +1817,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       needsInstall: !!form.needsInstall,
       installFee: Number(form.installFee) || 0,
       shippingFee: Number(form.shippingFee) || 0,
+      tone: form.tone || 'grey',
     });
   }
 
@@ -1917,6 +1937,32 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
             placeholder="0"
             className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
           <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님에겐 설치비와 합쳐 "배송·설치비"로 보여요. 마진 계산엔 원가로 반영돼요.</p>
+        </div>
+        <div>
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>어울리는 톤</label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { key: 'grey', label: '모던 그레이' },
+              { key: 'wood', label: '웜 우드 (우드계열)' },
+              { key: 'scandi', label: '스칸디 미니멀' },
+              { key: 'all', label: '어디나 어울림' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => set('tone', t.key)}
+                className="text-xs font-bold py-2 border"
+                style={{
+                  borderColor: form.tone === t.key ? 'var(--ink)' : 'var(--line)',
+                  background: form.tone === t.key ? 'var(--ink)' : 'transparent',
+                  color: form.tone === t.key ? '#fff' : 'var(--ink)',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '웜 우드'는 웜우드·스칸디 둘 다 노출, '어디나'는 모든 톤에 노출돼요.</p>
         </div>
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
@@ -2094,7 +2140,12 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           </div>
                         )}
                         <div className="min-w-0">
-                          <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
+                            <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
+                              {({ grey: '모던그레이', wood: '웜우드', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
+                            </span>
+                          </div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>
                             <div className="flex gap-1.5">
                               <span style={{ opacity: 0.5 }}>상품원가</span>

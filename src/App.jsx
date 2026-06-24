@@ -2605,7 +2605,7 @@ function AdminReservations({ reservations, onUpdateStatus }) {
 /* admin: 발주 — 신청일별 → 손님별 → 상품+링크                             */
 /* ---------------------------------------------------------------------- */
 
-function AdminOrders({ reservations }) {
+function AdminOrders({ reservations, products }) {
   if (reservations.length === 0) {
     return (
       <div className="border p-4 text-center text-sm" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
@@ -2645,7 +2645,8 @@ function AdminOrders({ reservations }) {
                   <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
                     {(r.items || []).map((it) => {
                       const Icon = CAT_BY_ID[it.product?.category]?.icon;
-                      const url = it.product?.purchaseUrl;
+                      const liveProduct = products.find((p) => p.id === it.product?.id);
+                      const url = liveProduct?.purchaseUrl || it.product?.purchaseUrl;
                       return (
                         <div key={it.product?.id} className="flex items-center justify-between px-3 py-2 gap-2">
                           <span className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: 'var(--ink)' }}>
@@ -2852,7 +2853,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
       </div>
 
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
-      {tab === 'orders' && <AdminOrders reservations={reservations} />}
+      {tab === 'orders' && <AdminOrders reservations={reservations} products={products} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} onUpdateStatus={onUpdateStatus} />}
       {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />}
     </div>

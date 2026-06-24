@@ -1774,6 +1774,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     images: initial?.images?.length ? [...initial.images, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
     detailImages: initial?.detailImages?.length ? [...initial.detailImages] : [],
     shippingFee: initial?.shippingFee ?? 0,
+    purchaseUrl: initial?.purchaseUrl || '',
     tone: initial?.tone ?? 'grey',
   }));
 
@@ -1848,6 +1849,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       images: form.images,
       detailImages: form.detailImages,
       shippingFee: Number(form.shippingFee) || 0,
+      purchaseUrl: form.purchaseUrl.trim(),
       tone: form.tone || 'grey',
     });
   }
@@ -1952,6 +1954,14 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
             placeholder="0"
             className={`${inputCls} idn-mono`} style={{ borderColor: 'var(--line)' }} />
           <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님 청구 없음. 원가 파악용으로만 기록해요.</p>
+        </div>
+
+        <div className="col-span-2">
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>구매 링크 (가구라이즈·동서가구 등)</label>
+          <input value={form.purchaseUrl} onChange={(e) => set('purchaseUrl', e.target.value)}
+            placeholder="https://..."
+            className={inputCls} style={{ borderColor: 'var(--line)' }} />
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>발주 탭에서 바로 눌러서 들어갈 수 있어요.</p>
         </div>
 
         <div>
@@ -2592,72 +2602,72 @@ function AdminReservations({ reservations, onUpdateStatus }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* admin: 발주 집계 — 입주주간별 상품 필요수량                              */
+/* admin: 발주 — 신청일별 → 손님별 → 상품+링크                             */
 /* ---------------------------------------------------------------------- */
 
-function aggregateOrdersByWeek(reservations) {
-  const byWeek = {};
-  reservations.forEach((r) => {
-    if (!r.moveInDate) return;
-    const wk = weekKey(r.moveInDate);
-    if (!byWeek[wk]) byWeek[wk] = { items: {}, reservationCount: 0 };
-    byWeek[wk].reservationCount += 1;
-    (r.items || []).forEach((it) => {
-      const pid = it.product?.id;
-      if (!pid) return;
-      if (!byWeek[wk].items[pid]) byWeek[wk].items[pid] = { product: it.product, qty: 0 };
-      byWeek[wk].items[pid].qty += it.qty;
-    });
-  });
-  return byWeek;
-}
-
 function AdminOrders({ reservations }) {
-  const byWeek = aggregateOrdersByWeek(reservations);
-  const weekKeys = Object.keys(byWeek).sort();
-  const todayWk = weekKey(isoDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
-
-  if (weekKeys.length === 0) {
+  if (reservations.length === 0) {
     return (
       <div className="border p-4 text-center text-sm" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4, background: 'var(--surface)' }}>
-        아직 예약이 없어요 — 예약이 들어오면 입주주간별로 발주 수량이 여기 모여요
+        아직 예약이 없어요
       </div>
     );
   }
 
+  // 신청일(ts) 기준으로 날짜별 묶기 — 최신순
+  const byDate = {};
+  [...reservations].sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach((r) => {
+    const d = r.ts ? new Date(r.ts) : null;
+    const key = d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '날짜 미상';
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(r);
+  });
+
   return (
-    <div className="space-y-3">
-      <p className="text-xs" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-        같은 입주 주간(월~일)에 들어온 예약을 상품별로 합산했어요. 입주일 전까지 순차 배송될 수 있게 일정을 맞추세요.
-      </p>
-      {weekKeys.map((wk) => {
-        const { items, reservationCount } = byWeek[wk];
-        const start = new Date(`${wk}T00:00:00`);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
-        const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
-        const isPast = wk < todayWk;
-        const sortedItems = Object.values(items).sort((a, b) => CAT_BY_ID[a.product.category]?.label.localeCompare(CAT_BY_ID[b.product.category]?.label) || 0);
+    <div className="space-y-4">
+      {Object.entries(byDate).map(([dateKey, list]) => {
+        const label = dateKey === '날짜 미상' ? dateKey : `${parseInt(dateKey.slice(5,7))}/${parseInt(dateKey.slice(8,10))} 신청`;
         return (
-          <div key={wk} className="border" style={{ borderColor: 'var(--ink)', background: 'var(--surface)', opacity: isPast ? 0.5 : 1 }}>
-            <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
-              <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>
-                {fmt(start)} ~ {fmt(end)} 입주 주간 {isPast && '(지난 주간)'}
-              </span>
-              <span className="idn-mono text-[11px]" style={{ color: '#fff', opacity: 0.65 }}>예약 {reservationCount}건</span>
-            </div>
-            <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
-              {sortedItems.map(({ product, qty }) => {
-                const Icon = CAT_BY_ID[product.category]?.icon;
-                return (
-                  <div key={product.id} className="flex items-center justify-between px-3 py-2 text-sm" style={{ borderColor: 'var(--line)' }}>
-                    <span className="flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
-                      {Icon && <Icon size={14} />} {product.name}
-                    </span>
-                    <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{qty}개</span>
+          <div key={dateKey}>
+            <div className="idn-mono text-xs font-bold px-1 pb-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{label}</div>
+            <div className="space-y-2">
+              {list.map((r) => (
+                <div key={r.id ?? r.ts} className="border" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+                  <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'var(--line)', background: 'var(--bg)' }}>
+                    <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{r.name}</span>
+                    {r.moveInDate && <span className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>희망일 {r.moveInDate}</span>}
                   </div>
-                );
-              })}
+                  {r.address && (
+                    <div className="flex items-start gap-1.5 px-3 py-1.5 border-b text-[11px]" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.6 }}>
+                      <MapPin size={11} className="flex-shrink-0 mt-0.5" />{r.address}
+                    </div>
+                  )}
+                  <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
+                    {(r.items || []).map((it) => {
+                      const Icon = CAT_BY_ID[it.product?.category]?.icon;
+                      const url = it.product?.purchaseUrl;
+                      return (
+                        <div key={it.product?.id} className="flex items-center justify-between px-3 py-2 gap-2">
+                          <span className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: 'var(--ink)' }}>
+                            {Icon && <Icon size={13} className="flex-shrink-0" />}
+                            <span className="truncate">{it.product?.name}</span>
+                            {it.qty > 1 && <span className="idn-mono text-[11px] flex-shrink-0">×{it.qty}</span>}
+                          </span>
+                          {url ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer"
+                              className="flex-shrink-0 text-[11px] font-bold px-2 py-1 border"
+                              style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+                              발주 →
+                            </a>
+                          ) : (
+                            <span className="flex-shrink-0 text-[10px]" style={{ color: 'var(--ink)', opacity: 0.3 }}>링크 없음</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         );

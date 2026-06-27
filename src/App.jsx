@@ -1075,7 +1075,7 @@ function CopyMessageButton({ text, label, compact = false }) {
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit, onViewDetail }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1101,6 +1101,12 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
 
+  // 품목 클릭 — 모달 닫고 상세페이지로 이동
+  function handleViewItem(productId) {
+    handleClose();
+    onViewDetail(productId);
+  }
+
   function handleSubmit() {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
@@ -1125,21 +1131,41 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
             <div className="p-4">
               <div className="border mb-3" style={{ borderColor: 'var(--line)' }}>
-                {cartEntries.map((it, idx) => (
-                  <div key={it.product.id} className={`flex justify-between text-xs px-2.5 py-2 ${idx > 0 ? 'border-t' : ''}`} style={{ borderColor: 'var(--line)' }}>
-                    <span style={{ color: 'var(--ink)', opacity: 0.7 }}>
-                      {CAT_BY_ID[it.product.category].label} · {it.product.name}
-                      {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
-                    </span>
-                    <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
-                  </div>
-                ))}
+                {cartEntries.map((it, idx) => {
+                  const thumb = it.product.images?.[0];
+                  const Icon = CAT_BY_ID[it.product.category]?.icon;
+                  return (
+                    <button
+                      key={it.product.id}
+                      onClick={() => handleViewItem(it.product.id)}
+                      className={`w-full flex justify-between items-center text-xs px-2.5 py-2 text-left ${idx > 0 ? 'border-t' : ''}`}
+                      style={{ borderColor: 'var(--line)' }}
+                    >
+                      <span className="flex items-center gap-2 min-w-0" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+                        <span className="w-9 h-9 border flex-shrink-0 overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
+                          {thumb
+                            ? <img src={thumb} alt={it.product.name} className="w-full h-full object-cover" />
+                            : Icon ? <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} /> : null
+                          }
+                        </span>
+                        <span className="truncate underline" style={{ textDecorationColor: 'var(--line)' }}>
+                          {CAT_BY_ID[it.product.category].label} · {it.product.name}
+                          {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                        </span>
+                      </span>
+                      <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
+                    </button>
+                  );
+                })}
 
                 <div className="flex justify-between text-sm font-bold px-2.5 py-2 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
                   <span>합계</span>
                   <span className="idn-display">{won(total)}</span>
                 </div>
               </div>
+              <p className="text-[11px] text-center mb-3 -mt-1" style={{ color: 'var(--ink)', opacity: 0.45 }}>
+                품목을 누르면 상세 정보를 다시 볼 수 있어요
+              </p>
               {savings > 0 && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
                   <div className="px-2.5 py-1.5 font-bold border-b" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.55 }}>
@@ -1745,6 +1771,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         roomHas={roomHas}
         referralAgent={referralAgent}
         onSubmit={handleSubmitReservation}
+        onViewDetail={(pid) => { setModalOpen(false); setDetailId(pid); }}
       />
         </>
       )}
@@ -3005,7 +3032,7 @@ export default function App() {
         }
       </div>
 
-      <div className="text-center idn-mono text-[10px] py-4 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
+      <div className="text-center idn-mono text-[10px] py-3 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
         <div>상호명: D가구 &nbsp;|&nbsp; 대표자: 이영훈 &nbsp;|&nbsp; 사업자등록번호: 440-04-03751</div>
         <div className="mt-1">사업장 소재지: 서울시 광진구 광장동 아차산로 549 &nbsp;|&nbsp; friends292198@gmail.com</div>
       </div>

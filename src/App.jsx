@@ -831,6 +831,19 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 
   return (
     <div className="pb-28">
+      {/* 항상 화면 좌상단에 고정되는 뒤로가기 — 스크롤해도 따라와요. 상단 헤더 바로 아래에 자리잡아요 */}
+      <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="mx-auto max-w-md relative">
+          <button
+            onClick={onBack}
+            className="pointer-events-auto absolute left-3 w-9 h-9 flex items-center justify-center border shadow-md"
+            style={{ top: '5rem', background: 'var(--surface)', borderColor: 'var(--ink)' }}
+            aria-label="뒤로 가기"
+          >
+            <ArrowLeft size={18} style={{ color: 'var(--ink)' }} />
+          </button>
+        </div>
+      </div>
       {/* gallery */}
       <div className="relative">
         {product.images?.[activeImg] ? (
@@ -842,13 +855,6 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
             <span className="text-[10px]" style={{ color: 'var(--ink)', opacity: 0.35 }}>{IMAGE_SLOTS[activeImg].hint}</span>
           </div>
         )}
-        <button
-          onClick={onBack}
-          className="absolute top-3 left-3 w-9 h-9 flex items-center justify-center border"
-          style={{ background: 'var(--surface)', borderColor: 'var(--ink)' }}
-        >
-          <ArrowLeft size={18} style={{ color: 'var(--ink)' }} />
-        </button>
         <span
           className="absolute top-3 right-3 idn-mono text-[11px] font-bold px-2 py-1 border"
           style={{ background: 'var(--surface)', borderColor: 'var(--ink)', color: 'var(--ink)' }}

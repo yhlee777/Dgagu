@@ -1075,7 +1075,7 @@ function CopyMessageButton({ text, label, compact = false }) {
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit, onViewDetail }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit, onRemoveItem }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1086,6 +1086,11 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [shared, setShared] = useState(false);
 
   useEffect(() => { setAddress(initialAddress); }, [initialAddress]);
+
+  // 품목을 모두 빼면 더 보여줄 게 없으니 팝업을 닫아요 (예약완료 화면 제외)
+  useEffect(() => {
+    if (open && !done && cartEntries.length === 0) handleClose();
+  }, [open, done, cartEntries.length]);
 
   if (!open) return null;
 
@@ -1100,12 +1105,6 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     return s + (priceNoEarly - priceWithEarly) * e.qty;
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
-
-  // 품목 클릭 — 모달 닫고 상세페이지로 이동
-  function handleViewItem(productId) {
-    handleClose();
-    onViewDetail(productId);
-  }
 
   function handleSubmit() {
     if (!canSubmit || submitting) return;
@@ -1135,26 +1134,35 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                   const thumb = it.product.images?.[0];
                   const Icon = CAT_BY_ID[it.product.category]?.icon;
                   return (
-                    <button
+                    <div
                       key={it.product.id}
-                      onClick={() => handleViewItem(it.product.id)}
-                      className={`w-full flex justify-between items-center text-xs px-2.5 py-2 text-left ${idx > 0 ? 'border-t' : ''}`}
+                      className={`flex justify-between items-center text-xs px-2.5 py-2 ${idx > 0 ? 'border-t' : ''}`}
                       style={{ borderColor: 'var(--line)' }}
                     >
-                      <span className="flex items-center gap-2 min-w-0" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+                      <span className="flex items-center gap-2 min-w-0" style={{ color: 'var(--ink)', opacity: 0.75 }}>
                         <span className="w-9 h-9 border flex-shrink-0 overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
                           {thumb
                             ? <img src={thumb} alt={it.product.name} className="w-full h-full object-cover" />
                             : Icon ? <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} /> : null
                           }
                         </span>
-                        <span className="truncate underline" style={{ textDecorationColor: 'var(--line)' }}>
+                        <span className="truncate">
                           {CAT_BY_ID[it.product.category].label} · {it.product.name}
                           {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
                         </span>
                       </span>
-                      <span className="idn-mono font-bold flex-shrink-0 ml-2" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
-                    </button>
+                      <span className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.unitPrice * it.qty)}</span>
+                        <button
+                          onClick={() => onRemoveItem(it.product.id)}
+                          className="p-1"
+                          style={{ color: 'var(--ink)', opacity: 0.4 }}
+                          aria-label="이 품목 빼기"
+                        >
+                          <X size={15} />
+                        </button>
+                      </span>
+                    </div>
                   );
                 })}
 
@@ -1164,7 +1172,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 </div>
               </div>
               <p className="text-[11px] text-center mb-3 -mt-1" style={{ color: 'var(--ink)', opacity: 0.45 }}>
-                품목을 누르면 상세 정보를 다시 볼 수 있어요
+                X를 누르면 품목을 뺄 수 있어요
               </p>
               {savings > 0 && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
@@ -1771,7 +1779,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         roomHas={roomHas}
         referralAgent={referralAgent}
         onSubmit={handleSubmitReservation}
-        onViewDetail={(pid) => { setModalOpen(false); setDetailId(pid); }}
+        onRemoveItem={(pid) => updateCart(pid, 0)}
       />
         </>
       )}

@@ -3005,8 +3005,9 @@ export default function App() {
         }
       </div>
 
-      <div className="text-center idn-mono text-[10px] py-3 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
-        Supabase에 데이터가 저장돼요 — 모두가 같은 상품을 보고, 예약은 관리자에게 모여요
+      <div className="text-center idn-mono text-[10px] py-4 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
+        <div>상호명: D가구 &nbsp;|&nbsp; 대표자: 이영훈 &nbsp;|&nbsp; 사업자등록번호: 440-04-03751</div>
+        <div className="mt-1">사업장 소재지: 서울시 광진구 광장동 아차산로 549 &nbsp;|&nbsp; friends292198@gmail.com</div>
       </div>
     </div>
   );

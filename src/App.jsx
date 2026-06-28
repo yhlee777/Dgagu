@@ -183,7 +183,8 @@ function slimProductForReservation(p) {
 function slimItemsForReservation(items) {
   return (items || []).map((it) => ({ ...it, product: slimProductForReservation(it.product) }));
 }
-function buildReservationMessage(r) {
+function buildReservationMessage(r, bankAccount = {}) {
+  const ba = bankAccount || {};
   const lines = [];
   lines.push(`[D가구] ${r.name}님, 예약 감사해요 🙏`);
   lines.push('');
@@ -194,11 +195,15 @@ function buildReservationMessage(r) {
     lines.push(`· ${it.product?.name || ''}${qtyLabel}`);
   });
   lines.push('');
-  lines.push(`총 금액: ${won(r.total)}`);
+  lines.push(`입금액: ${won(r.total)} (전액 선결제)`);
+  if (ba.bank && ba.number) {
+    lines.push(`입금 계좌: ${ba.bank} ${ba.number}${ba.holder ? ` (${ba.holder})` : ''}`);
+    lines.push(`입금자명은 "${r.name}"(으)로 보내주세요.`);
+  } else {
+    lines.push('※ 입금 계좌는 곧 안내드릴게요.');
+  }
   lines.push('');
-  lines.push('입주 전날, 설치기사님이 전화로 정확한 방문 시간을 다시 확인드릴게요.');
-  lines.push('결제는 설치가 끝난 당일, 기사님께 현장에서 카드나 계좌이체로 하시면 돼요.');
-  lines.push('입주일에 깔끔하게 완성된 방으로 맞이하실 수 있도록 준비할게요!');
+  lines.push('입금이 확인되면 바로 발주해서 도매처에서 댁으로 직접 배송돼요. 도착 일정은 확인되는 대로 카카오톡으로 안내드릴게요.');
   if (r.ts != null) {
     lines.push('');
     lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.ts}`);
@@ -263,13 +268,13 @@ function dDayLabel(days) {
   if (days === 0) return 'D-DAY';
   return `D-${days}`;
 }
-// 예약 진행 단계 — 발주~설치까지 운영자가 순서대로 넘기는 상태값
+// 예약 진행 단계 — 결제확인~배송완료까지 운영자가 순서대로 넘기는 상태값 (key는 데이터 호환 위해 유지)
 const ORDER_STATUSES = [
   { key: 'received', label: '예약접수' },
-  { key: 'ordered', label: '제작중' },
-  { key: 'stocked', label: '제작완료' },
+  { key: 'ordered', label: '결제확인' },
+  { key: 'stocked', label: '발주완료' },
   { key: 'shipping', label: '배송중' },
-  { key: 'installed', label: '설치완료' },
+  { key: 'installed', label: '배송완료' },
 ];
 function statusIndex(status) {
   const i = ORDER_STATUSES.findIndex((s) => s.key === status);
@@ -354,10 +359,10 @@ function ArrivalPromise({ moveInDate, earlyBirdDays, earlyBirdDiscount }) {
           ) : (
             <>
               <div className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>
-                {moveInDate.slice(5).replace('-', '/')} 오전, 설치까지 끝난 방으로
+                {moveInDate.slice(5).replace('-', '/')}에 맞춰 댁으로 배송
               </div>
               <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.65 }}>
-                따로 사서 조립할 필요 없이, 입주일 오전에 묶음배송·설치까지 완료된 상태로 받아요.
+                여기저기 발품 팔 필요 없이, 골라둔 가구를 입주일에 맞춰 한 번에 배송해드려요. 정확한 도착 일정은 예약 후 카카오톡으로 안내드려요.
               </p>
               <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 border" style={{ borderColor: early ? 'var(--gold)' : 'var(--line)', background: early ? 'color-mix(in srgb, var(--gold) 12%, var(--surface))' : 'var(--bg)' }}>
                 <span className="text-[12px] font-bold" style={{ color: 'var(--ink)' }}>
@@ -654,14 +659,14 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
     <div className="border" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--ink)' }}>
-          <Calendar size={15} /> 배송 완성 희망일
+          <Calendar size={15} /> 배송 도착 희망일
         </span>
         {value ? (
           <span className="idn-mono text-xs font-bold px-2 py-1 border" style={{
             borderColor: isGuaranteed(value) ? 'var(--gold)' : 'var(--stamp)',
             color: isGuaranteed(value) ? 'var(--gold)' : 'var(--stamp)'
           }}>
-            {value.slice(5).replace('-', '/')} {isGuaranteed(value) ? '✓ 완성보장' : '완성보장 어려움'}
+            {value.slice(5).replace('-', '/')} {isGuaranteed(value) ? '✓ 도착보장' : '도착보장 어려움'}
           </span>
         ) : (
           <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.4 }}>날짜를 탭하세요</span>
@@ -719,7 +724,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 
         </div>
         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          가구마다 순차적으로 배송돼요. 희망일 기준 영업일 10일 이상 남으면 그 날까지 완성을 보장해요.
+          가구마다 순차적으로 배송돼요. 희망일 기준 영업일 10일 이상 남으면 그 날까지 도착을 보장해요.
         </p>
       </div>
     </div>
@@ -1081,7 +1086,69 @@ function CopyMessageButton({ text, label, compact = false }) {
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, onSubmit, onRemoveItem }) {
+// 계좌번호·금액 같은 짧은 값을 탭 한 번에 복사하는 작은 칩 버튼
+function CopyChip({ text, children }) {
+  const [copied, setCopied] = useState(false);
+  async function handle() {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 클립보드 막힘 — 무시 */ }
+  }
+  return (
+    <button
+      onClick={handle}
+      className="text-[11px] font-bold px-2 py-1 border flex items-center gap-1 flex-shrink-0"
+      style={{ borderColor: copied ? 'var(--gold)' : 'var(--ink)', color: copied ? 'var(--gold)' : 'var(--ink)' }}
+    >
+      {copied ? <Check size={11} /> : <ClipboardList size={11} />} {copied ? '복사됨' : children}
+    </button>
+  );
+}
+
+// 입금 계좌 안내 박스 — 예약완료 화면과 주문조회 화면에서 공용으로 써요
+function BankTransferBox({ bankAccount, amount, name }) {
+  const ba = bankAccount || {};
+  const hasAccount = ba.bank && ba.number;
+  return (
+    <div className="border-2 text-left" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+      <div className="px-3 py-2 border-b font-bold text-xs" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}>
+        입금 계좌 · 전액 선결제 (계좌이체)
+      </div>
+      <div className="px-3 py-2.5 space-y-2">
+        {hasAccount ? (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>{ba.bank}{ba.holder ? ` · 예금주 ${ba.holder}` : ''}</div>
+                <div className="idn-mono text-base font-bold truncate" style={{ color: 'var(--ink)' }}>{ba.number}</div>
+              </div>
+              <CopyChip text={String(ba.number).replace(/[^0-9]/g, '')}>계좌 복사</CopyChip>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: 'var(--line)' }}>
+              <div className="min-w-0">
+                <div className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>입금액</div>
+                <div className="idn-display text-lg font-bold" style={{ color: 'var(--ink)' }}>{won(amount)}</div>
+              </div>
+              <CopyChip text={String(Math.round(amount || 0))}>금액 복사</CopyChip>
+            </div>
+            {name && (
+              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+                입금자명을 <b style={{ color: 'var(--ink)' }}>{name}</b>(으)로 보내주시면 확인이 빨라요.
+              </p>
+            )}
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              입금이 확인되면 바로 발주해서 도매처에서 댁으로 직접 배송해드려요.
+            </p>
+          </>
+        ) : (
+          <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+            입금 계좌는 카카오톡으로 안내드릴게요. 입금이 확인되면 바로 발주해드려요.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, bankAccount, onSubmit, onRemoveItem }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1266,7 +1333,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                지금은 결제 없이 예약만 접수돼요.<br />결제는 설치가 끝난 당일, 기사님께 현장에서 카드·계좌이체로 하시면 돼요.
+                예약 접수 후 결제 안내를 보여드려요.<br />전액 선결제가 확인되면 바로 발주해서 도매처에서 직접 배송돼요.
               </p>
             </div>
           </>
@@ -1274,34 +1341,33 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
           <div className="text-center py-8 px-4">
             <div className="idn-seal w-28 h-28 text-base mx-auto mb-4" style={{ borderWidth: '3px' }}>예약완료</div>
             <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-              입주일에 맞춰 최저가로 준비해서<br />보내드릴게요.
+              예약이 접수됐어요.<br />아래 계좌로 입금하시면 바로 발주해드려요.
             </p>
-            <p className="text-[12px] mt-2 px-2 py-1.5 inline-block border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)', opacity: 0.8 }}>
-              결제는 설치 완료 후 현장에서 (카드·계좌이체)
+            <div className="mt-3">
+              <BankTransferBox bankAccount={bankAccount} amount={total} name={name} />
+            </div>
+            <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              입금이 확인되면 도매처에서 댁으로 직접 배송돼요.<br />도착 일정은 카카오톡으로 안내드려요.
             </p>
-            <p className="text-xs mt-3 mb-1" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
-            </p>
-            <button
-              onClick={() => { if (shareKakao({ name, moveInDate, total, items: cartEntries, orderId })) setShared(true); }}
-              disabled={submitting}
-              className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 mt-1 disabled:opacity-50"
-              style={{ background: '#FEE500', color: '#191919' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path fillRule="evenodd" clipRule="evenodd" d="M9 1.5C4.86 1.5 1.5 4.2 1.5 7.5c0 2.07 1.23 3.9 3.09 4.98L3.75 15l3.3-1.71C7.65 13.41 8.31 13.5 9 13.5c4.14 0 7.5-2.7 7.5-6S13.14 1.5 9 1.5z" fill="#191919"/>
-              </svg>
-              {submitting ? '준비 중...' : '내 카톡에 저장하기'}
-            </button>
-            {shared ? (
-              <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
-                확인
-              </button>
-            ) : (
-              <p className="text-[11px] mt-3" style={{ color: 'var(--ink)', opacity: 0.4 }}>
-                카톡 저장을 마치면 확인 버튼이 나타나요
+            <div className="border-t mt-4 pt-4" style={{ borderColor: 'var(--line)' }}>
+              <p className="text-xs mb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+                내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
               </p>
-            )}
+              <button
+                onClick={() => { if (shareKakao({ name, moveInDate, total, items: cartEntries, orderId })) setShared(true); }}
+                disabled={submitting}
+                className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ background: '#FEE500', color: '#191919' }}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M9 1.5C4.86 1.5 1.5 4.2 1.5 7.5c0 2.07 1.23 3.9 3.09 4.98L3.75 15l3.3-1.71C7.65 13.41 8.31 13.5 9 13.5c4.14 0 7.5-2.7 7.5-6S13.14 1.5 9 1.5z" fill="#191919"/>
+                </svg>
+                {submitting ? '준비 중...' : shared ? '저장됨 ✓' : '내 카톡에 저장하기'}
+              </button>
+            </div>
+            <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+              닫기
+            </button>
           </div>
         )}
       </div>
@@ -1356,7 +1422,7 @@ function defaultProductForCategory(products, catId, toneKey = null) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, onAddReservation }) {
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation }) {
   const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'address' | 'shop'
   const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
@@ -1538,7 +1604,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
             </p>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.75 }}>
               제품 하자·불량은 100% 교환 또는 환불 보장해요.<br />
-              조립·설치까지 완료된 상태로 받아요.
+              입주일에 맞춰 댁으로 바로 배송해드려요.
             </p>
           </div>
           <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
@@ -1656,7 +1722,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
-          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송 완성 희망일 선택'}
+          <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송 도착 희망일 선택'}
         </button>
         {fullAddress && (
           <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
@@ -1683,11 +1749,11 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         )}
         <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>조립·설치 포함 — 순차 배송</div>
+            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>도매처 직배송 — 입주일 맞춤</div>
             <div className="text-[10px] font-bold px-1.5 py-0.5" style={{ background: 'var(--stamp)', color: '#fff' }}>하자 100% 보장</div>
           </div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            가구마다 순서대로 배송·설치돼요. 불량이면 100% 교환 또는 환불해드려요.
+            주문하신 가구가 입주일에 맞춰 댁으로 배송돼요. 불량이면 100% 교환 또는 환불해드려요.
           </div>
         </div>
         <PackageCard
@@ -1784,6 +1850,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         initialAddress={fullAddress}
         roomHas={roomHas}
         referralAgent={referralAgent}
+        bankAccount={bankAccount}
         onSubmit={handleSubmitReservation}
         onRemoveItem={(pid) => updateCart(pid, 0)}
       />
@@ -2252,7 +2319,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
   );
 }
 
-function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages }) {
+function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount }) {
   const [agentCode, setAgentCode] = useState('');
   const trimmedCode = agentCode.trim();
   const qrUrl = trimmedCode ? `${SITE_URL}/?agent=${encodeURIComponent(trimmedCode)}` : '';
@@ -2278,6 +2345,42 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
   ];
   return (
     <div className="space-y-3">
+      <div className="border p-4" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>입금 계좌 (전액 선결제 · 계좌이체)</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          여기 입력한 계좌가 손님 예약완료 화면·주문조회·카톡 문구에 입금액과 함께 자동으로 떠요. 손님이 이체하면 입금을 확인하고 예약현황에서 '결제확인'으로 넘기면 돼요.
+        </p>
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={bankAccount?.bank || ''}
+            onChange={(e) => setBankAccount((b) => ({ ...b, bank: e.target.value }))}
+            placeholder="은행명 (예: 카카오뱅크)"
+            className="w-full border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--line)' }}
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={bankAccount?.number || ''}
+            onChange={(e) => setBankAccount((b) => ({ ...b, number: e.target.value }))}
+            placeholder="계좌번호 (- 없이 숫자만)"
+            className="w-full border px-3 py-2 text-sm idn-mono"
+            style={{ borderColor: 'var(--line)' }}
+          />
+          <input
+            type="text"
+            value={bankAccount?.holder || ''}
+            onChange={(e) => setBankAccount((b) => ({ ...b, holder: e.target.value }))}
+            placeholder="예금주 (예: 이영훈)"
+            className="w-full border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--line)' }}
+          />
+        </div>
+        <p className="text-[11px] mt-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+          비워두면 손님 화면엔 "입금 계좌는 카카오톡으로 안내드릴게요"라고 떠요.
+        </p>
+      </div>
       <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
         <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>부동산 제휴 QR 생성</h3>
         <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
@@ -2434,7 +2537,7 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
   );
 }
 
-function AdminReservations({ reservations, onUpdateStatus }) {
+function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | status key
 
   if (reservations.length === 0) {
@@ -2632,7 +2735,7 @@ function AdminReservations({ reservations, onUpdateStatus }) {
                     {r.savings > 0 && <span className="text-[11px] font-normal" style={{ color: 'var(--stamp)' }}> (−{won(r.savings)})</span>}
                   </span>
                 </div>
-                <CopyMessageButton text={buildReservationMessage(r)} label="카톡 문구 복사" compact />
+                <CopyMessageButton text={buildReservationMessage(r, bankAccount)} label="카톡 문구 복사" compact />
               </div>
             );
           })}
@@ -2722,7 +2825,7 @@ function AdminOrders({ reservations, products }) {
 const ADMIN_PIN = '0610';
 
 // 손님용 주문조회 화면 — 카카오톡으로 받은 링크(/order/:id)로 들어와서 상태를 확인해요
-function OrderLookup({ orderId, reservations, loaded }) {
+function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
   if (!loaded) {
     return (
       <div className="px-4 pt-20 text-center text-sm" style={{ color: 'var(--ink)', opacity: 0.4 }}>
@@ -2780,11 +2883,11 @@ function OrderLookup({ orderId, reservations, loaded }) {
             </span>
           </div>
           <p className="text-[12px] leading-relaxed mt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-            {status === 'received' && '예약이 접수됐어요. 곧 발주를 진행할게요.'}
-            {status === 'ordered' && '주문 제작이 시작됐어요. 완료되는 대로 바로 배송 준비할게요.'}
-            {status === 'stocked' && '제작이 완료됐어요. 곧 배송 기사님이 연락드릴 거예요.'}
-            {status === 'shipping' && '배송이 시작됐어요. 입주 전날 설치기사님이 방문 시간을 전화로 안내드려요.'}
-            {status === 'installed' && '설치까지 완료됐어요. 새로운 공간에서 좋은 시간 보내세요!'}
+            {status === 'received' && '예약이 접수됐어요. 결제가 확인되면 바로 발주를 진행할게요.'}
+            {status === 'ordered' && '결제가 확인됐어요. 도매처에 발주를 넣고 있어요.'}
+            {status === 'stocked' && '발주가 완료됐어요. 도매처에서 상품을 준비하고 있어요.'}
+            {status === 'shipping' && '배송이 시작됐어요. 도착 일정은 카카오톡으로 안내드릴게요.'}
+            {status === 'installed' && '배송이 완료됐어요. 새로운 공간에서 좋은 시간 보내세요!'}
           </p>
         </div>
       </div>
@@ -2822,12 +2925,18 @@ function OrderLookup({ orderId, reservations, loaded }) {
       )}
 
       {/* 결제 안내 */}
-      <div className="border-2 mb-4 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
-        <div className="text-xs font-bold mb-0.5" style={{ color: 'var(--ink)' }}>결제 안내</div>
-        <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-          미리 결제하실 필요 없어요. 설치가 끝난 당일, 기사님께 현장에서 카드나 계좌이체로 결제하시면 돼요.
-        </p>
-      </div>
+      {status === 'received' ? (
+        <div className="mb-4">
+          <BankTransferBox bankAccount={bankAccount} amount={r.total} name={r.name} />
+        </div>
+      ) : (
+        <div className="border-2 mb-4 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
+          <div className="text-xs font-bold mb-0.5" style={{ color: 'var(--ink)' }}>결제 안내 · 전액 선결제</div>
+          <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
+            입금이 확인됐어요. 도매처에서 댁으로 직접 배송되며, 도착 일정은 카카오톡으로 안내드려요.
+          </p>
+        </div>
+      )}
 
       <p className="text-center text-[11px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>
         이 페이지는 카카오톡으로 받은 링크로 언제든 다시 들어올 수 있어요.
@@ -2866,7 +2975,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, onUpdateStatus }) {
+function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount, onUpdateStatus }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -2895,8 +3004,8 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
 
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
       {tab === 'orders' && <AdminOrders reservations={reservations} products={products} />}
-      {tab === 'reservations' && <AdminReservations reservations={reservations} onUpdateStatus={onUpdateStatus} />}
-      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} />}
+      {tab === 'reservations' && <AdminReservations reservations={reservations} bankAccount={bankAccount} onUpdateStatus={onUpdateStatus} />}
+      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} />}
     </div>
   );
 }
@@ -2924,6 +3033,7 @@ export default function App() {
   ]);
   const [regionLabel, setRegionLabel] = useState('우리 동네');
   const [packageImages, setPackageImages] = useState({ starter: '', sleep: '', full: '' });
+  const [bankAccount, setBankAccount] = useState({ bank: '', number: '', holder: '' });
   const [referralAgent] = useState(() => captureReferralAgent());
   const [loaded, setLoaded] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -2942,6 +3052,12 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 입금 계좌는 별도 컬럼이라, 아직 컬럼이 없어도 나머지가 안 깨지게 따로 불러와요
+      try {
+        const baRes = await supabase.from('settings').select('bankAccount').eq('id', 1).single();
+        if (!baRes.error && baRes.data?.bankAccount && !cancelled) setBankAccount((b) => ({ ...b, ...baRes.data.bankAccount }));
+      } catch { /* bankAccount 컬럼 없음 — 무시 */ }
+
       // 주문조회 페이지는 reservations 하나만 있으면 충분해서, products/settings를 기다리지 않고 바로 떠요
       if (view === 'order') {
         const { data, error } = await supabase.from('reservations').select('*').order('created_at');
@@ -2983,6 +3099,12 @@ export default function App() {
     supabase.from('settings').update({ earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages }).eq('id', 1)
       .then(({ error }) => error && console.error('settings save failed', error));
   }, [earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    supabase.from('settings').update({ bankAccount }).eq('id', 1)
+      .then(({ error }) => error && console.error("입금계좌 저장 실패 — settings 테이블에 'bankAccount' jsonb 컬럼이 필요해요", error));
+  }, [bankAccount, loaded]);
 
   async function addReservation(r) {
     const payload = {
@@ -3037,11 +3159,11 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} onAddReservation={addReservation} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} />
           : view === 'order'
-            ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} />
+            ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} bankAccount={bankAccount} />
             : adminUnlocked
-              ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} onUpdateStatus={updateReservationStatus} />
+              ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} onUpdateStatus={updateReservationStatus} />
               : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>

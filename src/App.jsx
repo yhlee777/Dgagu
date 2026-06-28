@@ -100,6 +100,16 @@ function productMatchesTone(product, toneKey) {
   if (t === 'wood' && toneKey === 'scandi') return true;
   return false;
 }
+// 톤별 색상 사진 — 한 상품이 색상별로 다를 때, 고른 톤에 맞는 색상 사진을 돌려줘요.
+// 해당 톤 색상 사진이 없으면 기본 사진(images)으로 떨어져요.
+function imagesForTone(product, toneKey) {
+  const ti = product?.toneImages;
+  if (ti) {
+    const key = toneKey === 'scandi' || toneKey === 'wood' ? 'scandi' : toneKey === 'grey' ? 'grey' : null;
+    if (key && Array.isArray(ti[key]) && ti[key].some(Boolean)) return ti[key];
+  }
+  return product?.images || [];
+}
 
 function isoDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -178,7 +188,7 @@ const SITE_URL = 'https://dgagu.com';
 // 안 그러면 예약 1건마다 상품 사진(원본 base64)이 통째로 복제 저장돼서 테이블이 급격히 무거워져요.
 function slimProductForReservation(p) {
   if (!p) return p;
-  const { images, detailImages, ...rest } = p;
+  const { images, detailImages, toneImages, ...rest } = p;
   return rest;
 }
 function slimItemsForReservation(items) {
@@ -502,10 +512,10 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
       <div className="px-3 py-2.5">
         <div className="space-y-1 mb-2">
           {items.map((p) => {
-            const Icon = CAT_BY_ID[p.category].icon;
+            const Icon = CAT_BY_ID[p.category]?.icon || Package;
             const alternatives = products.filter((alt) => alt.category === p.category && productMatchesTone(alt, selectedTone));
             const isOpen = openCat === p.category;
-            const thumb = p.images?.[0];
+            const thumb = imagesForTone(p, selectedTone)[0];
             return (
               <div key={p.category}>
                 <div className="flex items-center justify-between text-xs gap-2">
@@ -733,19 +743,20 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 }
 /* ---------------------------------------------------------------------- */
 
-function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick, fullWidth = false }) {
-  const Icon = CAT_BY_ID[product.category].icon;
+function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, onClick, fullWidth = false, toneKey = null }) {
+  const Icon = CAT_BY_ID[product.category]?.icon || Package;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
+  const thumb = imagesForTone(product, toneKey)[0];
   return (
     <button
       onClick={onClick}
       className={`relative text-left border overflow-hidden ${fullWidth ? 'w-full' : 'flex-shrink-0 w-36 sm:w-44'}`}
       style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}
     >
-      {product.images?.[0] ? (
-        <img src={product.images[0]} alt={product.name} className="w-full h-28 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+      {thumb ? (
+        <img src={thumb} alt={product.name} className="w-full h-28 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
       ) : (
         <div className="idn-hatch w-full h-28 flex items-center justify-center border-b" style={{ borderColor: 'var(--line)' }}>
           <Icon size={26} style={{ color: 'var(--ink)', opacity: 0.3 }} />
@@ -807,13 +818,14 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct }) {
-  const filledImageIdx = (product.images || []).reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
+function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct, selectedTone = null }) {
+  const galleryImages = imagesForTone(product, selectedTone);
+  const filledImageIdx = galleryImages.reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(filledImageIdx[0] ?? 0);
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
-  const Icon = CAT_BY_ID[product.category].icon;
+  const Icon = CAT_BY_ID[product.category]?.icon || Package;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
@@ -852,8 +864,8 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       </div>
       {/* gallery */}
       <div className="relative">
-        {product.images?.[activeImg] ? (
-          <img src={product.images[activeImg]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+        {galleryImages?.[activeImg] ? (
+          <img src={galleryImages[activeImg]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
         ) : (
           <div className="idn-hatch w-full h-64 flex flex-col items-center justify-center gap-1 border-b text-center px-10" style={{ borderColor: 'var(--line)' }}>
             <Icon size={32} style={{ color: 'var(--ink)', opacity: 0.3 }} />
@@ -865,7 +877,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
           className="absolute top-3 right-3 idn-mono text-[11px] font-bold px-2 py-1 border"
           style={{ background: 'var(--surface)', borderColor: 'var(--ink)', color: 'var(--ink)' }}
         >
-          {CAT_BY_ID[product.category].label}
+          {catLabel(product.category)}
         </span>
       </div>
 
@@ -877,7 +889,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
             return (
               <button key={i} onClick={() => setActiveImg(i)} className="flex-1 min-w-0 text-left">
                 <div className="w-full aspect-square overflow-hidden" style={{ border: active ? '2px solid var(--ink)' : '1px solid var(--line)' }}>
-                  <img src={product.images[i]} alt="" className="w-full h-full object-cover" />
+                  <img src={galleryImages[i]} alt="" className="w-full h-full object-cover" />
                 </div>
               </button>
             );
@@ -929,7 +941,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
               <div className="w-20 flex-shrink-0 px-2.5 py-2 font-bold flex items-center gap-1.5" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
                 <Icon size={12} /> 카테고리
               </div>
-              <div className="px-2.5 py-2 flex items-center" style={{ color: 'var(--ink)' }}>{CAT_BY_ID[product.category].label}</div>
+              <div className="px-2.5 py-2 flex items-center" style={{ color: 'var(--ink)' }}>{catLabel(product.category)}</div>
             </div>
             {product.dims && (
               <div className="flex text-xs border-b" style={{ borderColor: 'var(--line)' }}>
@@ -988,6 +1000,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
                 regionDiscount={regionDiscount}
                 qtyInCart={cart[p.id] || 0}
                 onClick={() => onSelectProduct(p.id)}
+                toneKey={selectedTone}
               />
             ))}
           </div>
@@ -1493,7 +1506,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     setModalOpen(true);
   }
   async function handleSubmitReservation(payload) {
-    return onAddReservation(payload);
+    return onAddReservation({ ...payload, tone: selectedTone });
   }
   function handleModalClose() {
     setModalOpen(false);
@@ -1516,6 +1529,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         onUpdateCart={updateCart}
         onBack={() => setDetailId(null)}
         onSelectProduct={(pid) => setDetailId(pid)}
+        selectedTone={selectedTone}
       />
     );
   }
@@ -1825,6 +1839,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
                     qtyInCart={cart[p.id] || 0}
                     onClick={() => setDetailId(p.id)}
                     fullWidth
+                    toneKey={selectedTone}
                   />
                 ))}
               </div>
@@ -1885,6 +1900,10 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     shippingFee: initial?.shippingFee ?? 0,
     purchaseUrl: initial?.purchaseUrl || '',
     tone: initial?.tone ?? 'grey',
+    toneImages: {
+      grey: initial?.toneImages?.grey?.length ? [...initial.toneImages.grey, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
+      scandi: initial?.toneImages?.scandi?.length ? [...initial.toneImages.scandi, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
+    },
   }));
 
   function set(field, value) {
@@ -1904,6 +1923,23 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       setImage(i, await resizeImage(file));
     } catch (err) {
       console.error('image resize failed', err);
+    }
+  }
+  // 톤별 색상 사진 — toneKey('grey'|'scandi') 슬롯 i에 이미지 저장
+  function setToneImage(toneKey, i, value) {
+    setForm((f) => {
+      const arr = [...(f.toneImages?.[toneKey] || ['', '', '', ''])];
+      arr[i] = value;
+      return { ...f, toneImages: { ...f.toneImages, [toneKey]: arr } };
+    });
+  }
+  async function handleToneImageFile(toneKey, i, e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setToneImage(toneKey, i, await resizeImage(file));
+    } catch (err) {
+      console.error('tone image resize failed', err);
     }
   }
   // 설명 이미지(치수도면/특징컷 등) — 여러 장, 한 번에 여러 파일 선택 가능
@@ -1960,6 +1996,10 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       shippingFee: Number(form.shippingFee) || 0,
       purchaseUrl: form.purchaseUrl.trim(),
       tone: form.tone || 'grey',
+      toneImages: {
+        grey: (form.toneImages?.grey || []).filter(Boolean),
+        scandi: (form.toneImages?.scandi || []).filter(Boolean),
+      },
     });
   }
 
@@ -2010,6 +2050,43 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="col-span-2">
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>톤별 색상 사진 (색상이 톤마다 다를 때만)</label>
+          <p className="text-[11px] mb-2" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+            한 상품이 색상별로 다를 때(예: 책상 화이트/오크) 여기에 색상 사진을 넣으면, 손님이 고른 톤에 맞는 색만 보여줘요. <b>모던그레이를 고른 손님 → 모던그레이용 사진</b>, <b>스칸디를 고른 손님 → 스칸디용 사진</b>. 비워두면 위의 기본 사진이 그대로 쓰여요. 이 기능을 쓰려면 위 '어울리는 톤'을 <b>어디나 어울림</b>으로 두세요(두 톤 모두에 노출돼요).
+          </p>
+          {[
+            { key: 'grey', label: '모던그레이용 (예: 화이트)' },
+            { key: 'scandi', label: '스칸디용 (예: 오크)' },
+          ].map((toneOpt) => (
+            <div key={toneOpt.key} className="border p-2 mb-2" style={{ borderColor: 'var(--line)' }}>
+              <div className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink)' }}>{toneOpt.label}</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[0, 1, 2, 3].map((i) => {
+                  const img = form.toneImages?.[toneOpt.key]?.[i] || '';
+                  return (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      {img ? (
+                        <img src={img} alt="" className="w-full aspect-square object-cover border" style={{ borderColor: 'var(--line)' }} />
+                      ) : (
+                        <label className="idn-hatch w-full aspect-square flex items-center justify-center border cursor-pointer" style={{ borderColor: 'var(--line)' }}>
+                          <ImagePlus size={15} style={{ color: 'var(--ink)', opacity: 0.3 }} />
+                          <input type="file" accept="image/*" onChange={(e) => handleToneImageFile(toneOpt.key, i, e)} className="hidden" />
+                        </label>
+                      )}
+                      {img ? (
+                        <button type="button" onClick={() => setToneImage(toneOpt.key, i, '')} className="text-[10px] font-bold" style={{ color: 'var(--stamp)' }}>삭제</button>
+                      ) : (
+                        <span className="text-[9px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>{i === 0 ? '대표' : `사진${i + 1}`}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="col-span-2">
@@ -2212,17 +2289,27 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
   const [editing, setEditing] = useState(null); // null | 'new' | product
 
   async function handleSave(data) {
+    const { toneImages, ...rest } = data;
     if (data.id) {
       setProducts((ps) => ps.map((p) => (p.id === data.id ? { ...p, ...data } : p)));
-      const { error } = await supabase.from('products').update(data).eq('id', data.id);
+      const { error } = await supabase.from('products').update(rest).eq('id', data.id);
       if (error) console.error('product save failed', error);
+      saveToneImages(data.id, toneImages);
     } else {
-      const created = makeProduct({ ...data, id: `p${Date.now()}` });
-      setProducts((ps) => [...ps, created]);
+      const id = `p${Date.now()}`;
+      const created = makeProduct({ ...rest, id });
+      setProducts((ps) => [...ps, { ...created, toneImages }]);
       const { error } = await supabase.from('products').insert(created);
       if (error) console.error('product save failed', error);
+      else saveToneImages(id, toneImages);
     }
     setEditing(null);
+  }
+  // 톤별 색상 사진은 별도 컬럼이라, 컬럼이 없어도 상품 저장이 안 깨지게 따로 저장해요
+  function saveToneImages(id, toneImages) {
+    if (!toneImages) return;
+    supabase.from('products').update({ toneImages }).eq('id', id)
+      .then(({ error }) => error && console.error("톤별 색상 사진 저장 실패 — products 테이블에 'toneImages' jsonb 컬럼이 필요해요", error));
   }
   async function handleDelete(id) {
     setProducts((ps) => ps.filter((p) => p.id !== id));
@@ -2633,7 +2720,7 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
         <div className="space-y-1.5">
           {ranking.map(([catId, count]) => (
             <div key={catId} className="flex items-center gap-2 text-xs">
-              <span className="w-12 flex-shrink-0 font-bold" style={{ color: 'var(--ink)' }}>{CAT_BY_ID[catId].label}</span>
+              <span className="w-12 flex-shrink-0 font-bold" style={{ color: 'var(--ink)' }}>{catLabel(catId)}</span>
               <div className="flex-1 h-2" style={{ background: 'var(--bg)' }}>
                 <div className="h-2" style={{ width: `${(count / maxCount) * 100}%`, background: 'var(--ink)' }} />
               </div>
@@ -2831,12 +2918,18 @@ function AdminOrders({ reservations, products }) {
                       const Icon = CAT_BY_ID[it.product?.category]?.icon;
                       const liveProduct = products.find((p) => p.id === it.product?.id);
                       const url = liveProduct?.purchaseUrl || it.product?.purchaseUrl;
+                      const hasColorVariant = liveProduct?.toneImages && (liveProduct.toneImages.grey?.some(Boolean) || liveProduct.toneImages.scandi?.some(Boolean));
                       return (
                         <div key={it.product?.id} className="flex items-center justify-between px-3 py-2 gap-2">
                           <span className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: 'var(--ink)' }}>
                             {Icon && <Icon size={13} className="flex-shrink-0" />}
                             <span className="truncate">{it.product?.name}</span>
                             {it.qty > 1 && <span className="idn-mono text-[11px] flex-shrink-0">×{it.qty}</span>}
+                            {it.tone && hasColorVariant && toneByKey(it.tone) && (
+                              <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
+                                {toneByKey(it.tone).label}
+                              </span>
+                            )}
                           </span>
                           {url ? (
                             <a href={url} target="_blank" rel="noopener noreferrer"
@@ -3147,11 +3240,14 @@ export default function App() {
   }, [bankAccount, loaded]);
 
   async function addReservation(r) {
+    // 선택한 톤(색상)을 각 품목에 함께 저장 — 어떤 색으로 주문했는지 사장님이 알 수 있게.
+    // 별도 컬럼을 만들지 않고 items(jsonb) 안에 넣어서 스키마 변경 없이 안전하게 보관해요.
+    const itemsWithTone = slimItemsForReservation(r.items).map((it) => ({ ...it, tone: r.tone || null }));
     const payload = {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
       serviceFeeTotal: r.serviceFeeTotal || 0,
-      items: slimItemsForReservation(r.items), subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
+      items: itemsWithTone, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
     };
     setReservations((rs) => [...rs, payload]);

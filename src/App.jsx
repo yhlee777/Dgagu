@@ -17,13 +17,14 @@ import { SEED_PRODUCTS, makeProduct } from './data/seedProducts';
 
 const CATEGORIES = [
   { id: 'desk',      label: '책상',     icon: Table2 },
-  { id: 'mattress',  label: '매트리스', icon: Layers },
-  { id: 'bedframe',  label: '침대프레임', icon: BedDouble },
+  { id: 'bedframe',  label: '침대',     icon: BedDouble },
   { id: 'chair',     label: '의자',     icon: Armchair },
   { id: 'hanger',    label: '행거',     icon: Shirt },
   { id: 'wardrobe',  label: '옷장',     icon: DoorClosed },
 ];
 const CAT_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+// 옛 카테고리(예: 매트리스)로 저장된 상품이 남아 있어도 화면이 안 깨지게 안전하게 라벨을 가져와요
+function catLabel(id) { return CAT_BY_ID[id]?.label || id || '기타'; }
 
 const IMAGE_SLOTS = [
   { label: '사진 1 (대표)', hint: '목록·카드에 보이는 대표 이미지예요' },
@@ -33,7 +34,7 @@ const IMAGE_SLOTS = [
 ];
 
 const ROOM_CHECK_ITEMS = [
-  { id: 'bedframe', label: '침대(프레임)' },
+  { id: 'bedframe', label: '침대' },
   { id: 'desk', label: '책상' },
   { id: 'wardrobe', label: '옷장' },
 ];
@@ -203,7 +204,7 @@ function buildReservationMessage(r, bankAccount = {}) {
     lines.push('※ 입금 계좌는 곧 안내드릴게요.');
   }
   lines.push('');
-  lines.push('입금이 확인되면 바로 발주해서 도매처에서 댁으로 직접 배송돼요. 도착 일정은 확인되는 대로 카카오톡으로 안내드릴게요.');
+  lines.push('입금이 확인되면 바로 출고를 시작해서 도매처에서 댁으로 직접 배송돼요. 도착 일정은 확인되는 대로 카카오톡으로 안내드릴게요.');
   if (r.ts != null) {
     lines.push('');
     lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.ts}`);
@@ -272,7 +273,7 @@ function dDayLabel(days) {
 const ORDER_STATUSES = [
   { key: 'received', label: '예약접수' },
   { key: 'ordered', label: '결제확인' },
-  { key: 'stocked', label: '발주완료' },
+  { key: 'stocked', label: '출고준비' },
   { key: 'shipping', label: '배송중' },
   { key: 'installed', label: '배송완료' },
 ];
@@ -822,7 +823,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
     Object.keys(cart).map((id) => allProducts.find((p) => p.id === id)?.category).filter(Boolean)
   );
   cartCategories.add(product.category); // 지금 보는 상품 카테고리도 제외
-  const suggestOrder = ['bedframe', 'mattress', 'desk', 'chair', 'wardrobe', 'hanger'];
+  const suggestOrder = ['bedframe', 'desk', 'chair', 'wardrobe', 'hanger'];
   const related = suggestOrder
     .filter((catId) => !cartCategories.has(catId))
     .map((catId) => allProducts.find((p) => p.category === catId))
@@ -1135,12 +1136,12 @@ function BankTransferBox({ bankAccount, amount, name }) {
               </p>
             )}
             <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              입금이 확인되면 바로 발주해서 도매처에서 댁으로 직접 배송해드려요.
+              입금이 확인되면 바로 출고를 시작해서 도매처에서 댁으로 직접 배송해드려요.
             </p>
           </>
         ) : (
           <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-            입금 계좌는 카카오톡으로 안내드릴게요. 입금이 확인되면 바로 발주해드려요.
+            입금 계좌는 카카오톡으로 안내드릴게요. 입금이 확인되면 바로 출고를 시작해요.
           </p>
         )}
       </div>
@@ -1220,7 +1221,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                           }
                         </span>
                         <span className="truncate">
-                          {CAT_BY_ID[it.product.category].label} · {it.product.name}
+                          {catLabel(it.product.category)} · {it.product.name}
                           {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
                         </span>
                       </span>
@@ -1333,7 +1334,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                예약 접수 후 결제 안내를 보여드려요.<br />전액 선결제가 확인되면 바로 발주해서 도매처에서 직접 배송돼요.
+                예약 접수 후 결제 안내를 보여드려요.<br />입금이 확인되면 바로 출고해서 도매처에서 직접 배송돼요.
               </p>
             </div>
           </>
@@ -1341,7 +1342,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
           <div className="text-center py-8 px-4">
             <div className="idn-seal w-28 h-28 text-base mx-auto mb-4" style={{ borderWidth: '3px' }}>예약완료</div>
             <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-              예약이 접수됐어요.<br />아래 계좌로 입금하시면 바로 발주해드려요.
+              예약이 접수됐어요.<br />아래 계좌로 입금하시면 바로 출고를 시작해요.
             </p>
             <div className="mt-3">
               <BankTransferBox bankAccount={bankAccount} amount={total} name={name} />
@@ -1382,15 +1383,15 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 // 기본세팅: 없는 것만 채움 (행거는 옷장이 있을 때만 보조로 추천, 둘 다 자동추천하진 않음)
 function basicCategoriesFromRoomState(roomHas) {
   const cats = {};
-  if (!roomHas.bedframe) { cats.bedframe = true; cats.mattress = true; }
+  if (!roomHas.bedframe) { cats.bedframe = true; }
   if (!roomHas.desk) { cats.desk = true; cats.chair = true; }
   if (!roomHas.wardrobe) { cats.wardrobe = true; }
-  if (roomHas.bedframe && roomHas.desk && roomHas.wardrobe) cats.mattress = true; // 다 있으면 새 잠자리(매트리스)만
+  if (roomHas.bedframe && roomHas.desk && roomHas.wardrobe) cats.bedframe = true; // 다 있으면 새 침대만
   return cats;
 }
-// 풀세팅: 방 전체를 구성 — 행거는 빼고(옷장과 중복) 프레임·매트리스·책상·의자·옷장만
+// 풀세팅: 방 전체를 구성 — 행거는 빼고(옷장과 중복) 침대·책상·의자·옷장만
 function fullCategoriesFromRoomState() {
-  return { bedframe: true, mattress: true, desk: true, chair: true, wardrobe: true };
+  return { bedframe: true, desk: true, chair: true, wardrobe: true };
 }
 function packageCategoriesFromRoomState(roomHas, tier = 'basic') {
   return tier === 'full' ? fullCategoriesFromRoomState() : basicCategoriesFromRoomState(roomHas);
@@ -2314,6 +2315,45 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
             </div>
           );
         })}
+        {(() => {
+          const orphans = products.filter((p) => !CAT_BY_ID[p.category]);
+          if (orphans.length === 0) return null;
+          return (
+            <div>
+              <div className="flex items-center gap-1.5 px-1 py-1">
+                <Package size={14} style={{ color: 'var(--stamp)' }} />
+                <span className="idn-display text-xs font-bold" style={{ color: 'var(--stamp)' }}>미분류 — 옛 카테고리예요. 수정에서 '침대' 등으로 바꾸거나 삭제하세요</span>
+              </div>
+              <div className="border-2" style={{ borderColor: 'var(--stamp)' }}>
+                {orphans.map((p, idx) => (
+                  <div key={p.id} className={`flex items-center justify-between gap-2 p-2.5 ${idx > 0 ? 'border-t' : ''}`} style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {p.images?.[0] ? (
+                        <img src={p.images[0]} alt="" className="w-9 h-9 object-cover border flex-shrink-0" style={{ borderColor: 'var(--line)' }} />
+                      ) : (
+                        <div className="w-9 h-9 flex items-center justify-center border flex-shrink-0" style={{ background: 'var(--bg)', borderColor: 'var(--line)' }}>
+                          <Package size={16} style={{ color: 'var(--ink)', opacity: 0.4 }} />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
+                        <div className="idn-mono text-[11px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>옛 분류: {p.category} · 판매가 {p.basePrice?.toLocaleString('ko-KR')}원</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => setEditing(p)} className="p-2 border" style={{ borderColor: 'var(--line)' }}>
+                        <Pencil size={14} style={{ color: 'var(--ink)' }} />
+                      </button>
+                      <button onClick={() => handleDelete(p.id)} className="p-2 border" style={{ borderColor: 'var(--line)' }}>
+                        <Trash2 size={14} style={{ color: 'var(--stamp)' }} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -2721,7 +2761,7 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
                   {r.items.map((it) => (
                     <div key={it.product.id} className="flex justify-between text-xs">
                       <span style={{ color: 'var(--ink)', opacity: 0.65 }}>
-                        {CAT_BY_ID[it.product.category].label} · {it.product.name}
+                        {catLabel(it.product.category)} · {it.product.name}
                         {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
                       </span>
                       <span className="idn-mono" style={{ color: 'var(--ink)' }}>{won(it.lineTotal)}</span>
@@ -2883,9 +2923,9 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
             </span>
           </div>
           <p className="text-[12px] leading-relaxed mt-2" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-            {status === 'received' && '예약이 접수됐어요. 결제가 확인되면 바로 발주를 진행할게요.'}
-            {status === 'ordered' && '결제가 확인됐어요. 도매처에 발주를 넣고 있어요.'}
-            {status === 'stocked' && '발주가 완료됐어요. 도매처에서 상품을 준비하고 있어요.'}
+            {status === 'received' && '예약이 접수됐어요. 입금이 확인되면 바로 출고를 준비할게요.'}
+            {status === 'ordered' && '입금이 확인됐어요. 출고를 준비하고 있어요.'}
+            {status === 'stocked' && '출고 준비가 끝났어요. 곧 배송이 시작돼요.'}
             {status === 'shipping' && '배송이 시작됐어요. 도착 일정은 카카오톡으로 안내드릴게요.'}
             {status === 'installed' && '배송이 완료됐어요. 새로운 공간에서 좋은 시간 보내세요!'}
           </p>
@@ -2901,7 +2941,7 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
           {(r.items || []).map((it) => (
             <div key={it.product?.id} className="flex justify-between text-xs py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
               <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
-                {it.product ? CAT_BY_ID[it.product.category]?.label : ''} · {it.product?.name}
+                {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
                 {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
               </span>
               <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>

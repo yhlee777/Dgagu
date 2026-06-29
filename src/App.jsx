@@ -556,21 +556,46 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                   </span>
                 </div>
                 {isOpen && (
-                  <div className="mt-1 mb-1.5 ml-4 space-y-1 border-l pl-2" style={{ borderColor: 'var(--line)' }}>
+                  <div className="mt-1.5 mb-2 ml-1 space-y-1.5 border-l-2 pl-2.5" style={{ borderColor: 'var(--gold)' }}>
+                    <div className="text-[10px] font-bold" style={{ color: 'var(--ink)', opacity: 0.5 }}>다른 {CAT_BY_ID[p.category]?.label || ''}(으)로 바꾸기</div>
                     {alternatives.map((alt) => {
                       const active = alt.id === p.id;
                       const altPrice = priceFor(alt, earlyBird, regionDiscount, earlyBirdDiscount);
+                      const altThumb = imagesForTone(alt, selectedTone)[0];
                       return (
-                        <div key={alt.id} className="w-full flex items-center justify-between text-[11px] py-1" style={{ color: 'var(--ink)', opacity: active ? 1 : 0.6 }}>
-                          <button onClick={() => onViewDetail(alt.id)} className="flex items-center gap-1 underline text-left" style={{ textDecorationColor: 'var(--line)' }}>
-                            {active && <Check size={11} />} {alt.name}
-                          </button>
+                        <div
+                          key={alt.id}
+                          className="flex items-center gap-2 border p-1.5"
+                          style={{ borderColor: active ? 'var(--ink)' : 'var(--line)', background: active ? 'color-mix(in srgb, var(--ink) 6%, var(--surface))' : 'var(--surface)' }}
+                        >
                           <button
-                            onClick={() => { setSelected((s) => ({ ...s, [p.category]: alt.id })); setOpenCat(null); }}
-                            className="idn-mono font-bold flex-shrink-0 ml-2"
+                            onClick={() => onViewDetail(alt.id)}
+                            className="w-10 h-10 border overflow-hidden flex-shrink-0 flex items-center justify-center"
+                            style={{ borderColor: 'var(--line)' }}
+                            aria-label="상세 보기"
                           >
-                            {won(altPrice)}
+                            {altThumb
+                              ? <img src={altThumb} alt="" className="w-full h-full object-cover" />
+                              : <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.4 }} />
+                            }
                           </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold truncate" style={{ color: 'var(--ink)' }}>{alt.name}</div>
+                            <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.7 }}>{won(altPrice)}</div>
+                          </div>
+                          {active ? (
+                            <span className="text-[10px] font-bold px-2 py-1.5 flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                              <Check size={12} /> 선택됨
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => { setSelected((s) => ({ ...s, [p.category]: alt.id })); setOpenCat(null); }}
+                              className="text-[11px] font-bold px-3 py-1.5 flex-shrink-0"
+                              style={{ background: 'var(--ink)', color: '#fff' }}
+                            >
+                              이걸로 변경
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -612,7 +637,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
               className="w-full py-2.5 font-bold text-sm"
               style={{ background: 'var(--ink)', color: '#fff' }}
             >
-              이 구성 한번에 담기
+              {items.length}개 장바구니에 모두 담기
             </button>
           </>
         )}

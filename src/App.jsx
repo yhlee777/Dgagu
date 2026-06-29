@@ -3447,6 +3447,25 @@ export default function App() {
     setReservations((rs) => [...rs, payload]);
     const { error } = await supabase.from('reservations').insert(payload);
     if (error) { console.error('reservation save failed', error); return null; }
+    // 예약 접수 알림톡 자동발송 — Supabase Edge Function(send-alimtalk)이 솔라피로 ①번 템플릿을 쏴요.
+    // 실패해도 예약 자체엔 영향 없게 fire-and-forget. (함수 미배포 시엔 콘솔 경고만 떠요)
+    try {
+      const orderDetail = (r.items || [])
+        .map((it) => `${it.product?.name || ''}${it.qty > 1 ? ` ${it.qty}개` : ''}`)
+        .filter(Boolean)
+        .join(', ');
+      supabase.functions.invoke('send-alimtalk', {
+        body: {
+          to: r.phone,
+          name: r.name,
+          orderDetail,
+          moveInDate: r.moveInDate || '미정',
+          total: won(r.total),
+          orderId: String(r.ts),
+        },
+      }).then(({ error: fnErr }) => fnErr && console.error('알림톡 발송 실패', fnErr))
+        .catch((e) => console.error('알림톡 발송 호출 오류', e));
+    } catch (e) { console.error('알림톡 준비 오류', e); }
     // ts(타임스탬프)는 insert 시점에 이미 알고 있는 값이라, 추가 조회 없이 바로 주문조회 키로 써요
     return r.ts;
   }

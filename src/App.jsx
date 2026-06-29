@@ -454,6 +454,7 @@ function RegionGauge({ moveInDate, weekKeyVal, count, thresholds, label }) {
 function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDiscount, packageImages, selectedTone, onAddAll, onViewDetail }) {
   const [tier, setTier] = useState('basic'); // 'basic' | 'full'
   const name = packageNameFromRoomState(roomHas, tier);
+  const toneLabel = selectedTone ? (toneByKey(selectedTone)?.label || '') : '';
   const packageImage = packageImages?.[packageKeyFromRoomState(roomHas, tier)];
   const catIds = Object.keys(packageCategoriesFromRoomState(roomHas, tier));
   const defaultItems = catIds.map((id) => defaultProductForCategory(products, id, selectedTone)).filter(Boolean);
@@ -506,9 +507,12 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
       {packageImage && (
         <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-32 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
       )}
-      <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
-        <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
-        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>톤에 맞춰 골라뒀어요</span>
+      <div className="px-3 py-2" style={{ background: 'var(--ink)' }}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9px] font-bold px-1.5 py-0.5 idn-mono flex-shrink-0" style={{ background: 'var(--gold)', color: 'var(--ink)' }}>추천</span>
+          <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>{toneLabel ? `${toneLabel}에 맞춘 인테리어` : '맞춤 인테리어'}</span>
+        </div>
+        <span className="text-[10px] block mt-0.5" style={{ color: '#fff', opacity: 0.6 }}>{name} · 톤에 맞춰 골라 담았어요</span>
       </div>
       <div className="px-3 py-2.5">
         <div className="space-y-1 mb-2">

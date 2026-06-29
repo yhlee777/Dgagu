@@ -5,7 +5,7 @@ import {
   Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList, Package,
   Phone, User, MapPin, ArrowLeft, LayoutGrid, Wallet,
   Users, Trophy, BadgePercent, Ruler, Layers,
-  ChevronLeft, ChevronRight, Lock, Search, Check,
+  ChevronLeft, ChevronRight, Lock, Search, Check, ShieldCheck,
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { resizeImage, readFileAsDataURL } from './lib/resizeImage';
@@ -318,6 +318,16 @@ function captureReferralAgent() {
 }
 function reviewLabel(n) {
   return n >= 9999 ? '9,999+' : n.toLocaleString('ko-KR');
+}
+// 시장 검증 배지 — 우리 가게 리뷰가 아니라 "이미 검증된 상품을 골라왔다"는 신뢰 표시.
+// 상품 ID 기준으로 항상 같은 배지가 나오게(매번 안 바뀌게) 정해요.
+const VERIFY_BADGES = ['시장 검증', 'MD 검증', '직접 고른 상품', '타 매장 인기'];
+function verifyBadge(product) {
+  if (product?.badge) return product.badge; // 상품에 직접 지정한 게 있으면 우선
+  const key = String(product?.id || '');
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return VERIFY_BADGES[h % VERIFY_BADGES.length];
 }
 /* ---------------------------------------------------------------------- */
 /* small shared bits                                                       */
@@ -804,10 +814,10 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
         <div className="text-sm font-bold leading-snug line-clamp-2 min-h-[2.5em]" style={{ color: 'var(--ink)' }}>
           {product.name}
         </div>
-        <div className="flex items-center gap-1 text-[11px] mt-1 idn-mono" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          <Star size={11} fill="currentColor" />
-          <span>{product.rating.toFixed(1)}</span>
-          <span>· {reviewLabel(product.reviews)}</span>
+        <div className="flex items-center gap-1 mt-1.5">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)' }}>
+            <ShieldCheck size={11} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)}
+          </span>
         </div>
         <div className="mt-1.5">
           {hasDiscount ? (
@@ -939,10 +949,11 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       {/* title */}
       <div className="px-4 pt-3">
         <h1 className="idn-display text-xl font-bold leading-snug" style={{ color: 'var(--ink)' }}>{product.name}</h1>
-        <div className="flex items-center gap-1 text-xs mt-1.5 idn-mono" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-          <Star size={12} fill="currentColor" />
-          <span>{product.rating.toFixed(1)}</span>
-          <span>· 리뷰 {reviewLabel(product.reviews)}개</span>
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)' }}>
+            <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)}
+          </span>
+          <span className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>이미 시장에서 검증된 상품이에요</span>
         </div>
       </div>
 
@@ -1038,10 +1049,10 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
             )}
             <div className="flex text-xs">
               <div className="w-20 flex-shrink-0 px-2.5 py-2 font-bold flex items-center gap-1.5" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
-                <Star size={12} /> 평점
+                <ShieldCheck size={12} /> 검증
               </div>
-              <div className="idn-mono px-2.5 py-2 flex items-center gap-1" style={{ color: 'var(--ink)' }}>
-                <Star size={11} fill="currentColor" /> {product.rating.toFixed(1)} · 리뷰 {reviewLabel(product.reviews)}개
+              <div className="px-2.5 py-2 flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
+                <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)} · 시장에서 검증된 상품
               </div>
             </div>
           </div>

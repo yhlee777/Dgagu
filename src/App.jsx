@@ -3454,7 +3454,7 @@ export default function App() {
         .map((it) => `${it.product?.name || ''}${it.qty > 1 ? ` ${it.qty}개` : ''}`)
         .filter(Boolean)
         .join(', ');
-      supabase.functions.invoke('send-alimtalk', {
+      supabase.functions.invoke('bright-task', {
         body: {
           to: r.phone,
           name: r.name,

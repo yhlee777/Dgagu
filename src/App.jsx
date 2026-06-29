@@ -1524,14 +1524,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     if (!moveInDate) { setPendingReserve(true); setStep('date'); return; }
     setModalOpen(true);
   }
-  // 날짜를 고르면 — 예약 흐름(예약하기로 넘어온 경우)에선 바로 정보 입력 팝업을 띄워요
+  // 날짜를 탭하면 선택(하이라이트)만 돼요. 다음으로 넘어가는 건 아래 버튼으로.
   function handleDatePick(dateStr) {
     setMoveInDate(dateStr);
-    if (pendingReserve && Object.keys(cart).length > 0) {
-      setPendingReserve(false);
-      setStep('shop');
-      setModalOpen(true);
-    }
   }
   async function handleSubmitReservation(payload) {
     const id = await onAddReservation({ ...payload, tone: selectedTone });
@@ -1695,7 +1690,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           {pendingReserve && (
             <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 10%, var(--surface))' }}>
               <p className="text-[12.5px] font-bold leading-relaxed" style={{ color: 'var(--ink)' }}>
-                배송받을 날짜를 고르면 바로 예약 정보 입력으로 넘어가요.
+                배송받을 날짜를 고른 뒤, 아래 버튼을 누르면 예약 정보 입력으로 넘어가요.
               </p>
             </div>
           )}

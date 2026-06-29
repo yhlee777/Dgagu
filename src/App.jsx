@@ -605,7 +605,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
                             }
                           </button>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-bold truncate" style={{ color: 'var(--ink)' }}>{alt.name}</div>
+                            <button onClick={() => onViewDetail(alt.id)} className="text-[11px] font-bold truncate block text-left w-full" style={{ color: 'var(--ink)' }}>{alt.name}</button>
                             <div className="idn-mono text-[11px]" style={{ color: 'var(--ink)', opacity: 0.7 }}>{won(altPrice)}</div>
                           </div>
                           {active ? (
@@ -1569,6 +1569,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const [cart, setCart] = useState({}); // productId -> qty
   const [cartOptions, setCartOptions] = useState({}); // productId -> 선택한 옵션 인덱스 (예: 다리 높이)
   const [detailId, setDetailId] = useState(null);
+  const detailScrollRef = useRef(0); // 상세 들어가기 전 쇼핑 화면 스크롤 위치 — 뒤로가면 그대로 복원
+  const openDetail = (pid) => { detailScrollRef.current = window.scrollY; setDetailId(pid); };
+  const backFromDetail = () => { setDetailId(null); requestAnimationFrame(() => window.scrollTo(0, detailScrollRef.current || 0)); };
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
   const reservationDoneRef = useRef(false); // 예약이 성공했는지 — 팝업 닫을 때 장바구니를 비울지 판단
@@ -1656,28 +1659,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
 
   const detailProduct = detailId ? products.find((p) => p.id === detailId) : null;
 
-  if (detailProduct) {
-    return (
-      <ProductPage
-        key={detailProduct.id}
-        product={detailProduct}
-        allProducts={products}
-        earlyBird={earlyBird}
-        earlyBirdDiscount={earlyBirdDiscount}
-        regionDiscount={regionDiscount}
-        qtyInCart={cart[detailProduct.id] || 0}
-        cart={cart}
-        onUpdateCart={updateCart}
-        onBack={() => setDetailId(null)}
-        onSelectProduct={(pid) => setDetailId(pid)}
-        selectedTone={selectedTone}
-        initialOptIdx={cartOptions[detailProduct.id] ?? 0}
-      />
-    );
-  }
-
   return (
-    <div className="pb-32">
+    <>
+    <div className="pb-32" style={{ display: detailProduct ? 'none' : 'block' }}>
       <div className="px-4 pt-3 flex items-center justify-center gap-1">
         {[
           { id: 'tone', label: '톤' },
@@ -1874,7 +1858,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
           packageImages={packageImages}
           selectedTone={selectedTone}
           onAddAll={(items) => items.forEach((p) => updateCart(p.id, 1))}
-          onViewDetail={(pid) => setDetailId(pid)}
+          onViewDetail={openDetail}
         />
         <RegionGauge moveInDate={moveInDate} weekKeyVal={wk} count={regionCount} thresholds={regionThresholds} label={regionLabel} />
       </div>
@@ -1931,7 +1915,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
                     earlyBirdDiscount={earlyBirdDiscount}
                     regionDiscount={regionDiscount}
                     qtyInCart={cart[p.id] || 0}
-                    onClick={() => setDetailId(p.id)}
+                    onClick={() => openDetail(p.id)}
                     fullWidth
                     toneKey={selectedTone}
                   />
@@ -1967,6 +1951,24 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         </>
       )}
     </div>
+    {detailProduct && (
+      <ProductPage
+        key={detailProduct.id}
+        product={detailProduct}
+        allProducts={products}
+        earlyBird={earlyBird}
+        earlyBirdDiscount={earlyBirdDiscount}
+        regionDiscount={regionDiscount}
+        qtyInCart={cart[detailProduct.id] || 0}
+        cart={cart}
+        onUpdateCart={updateCart}
+        onBack={backFromDetail}
+        onSelectProduct={(pid) => setDetailId(pid)}
+        selectedTone={selectedTone}
+        initialOptIdx={cartOptions[detailProduct.id] ?? 0}
+      />
+    )}
+    </>
   );
 }
 

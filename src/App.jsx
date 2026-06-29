@@ -82,10 +82,10 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 // 시작 화면 — 손님이 방 분위기(톤)를 먼저 고르게 해서 "내 방을 디자인한다"는 경험을 줘요.
 // 톤은 분위기 큐레이션용이고, 실제 담기는 가구는 같은 라인업이에요(구성으로 분위기 표현).
 const TONES = [
-  { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', desc: '화이트 + 그레이 + 우드 포인트. 깔끔하고 집중되는 공부방 무드.',
-    tip: '책상·의자를 중심으로 한 집중 공간에 어울려요. 그레이 침구와 화이트 벽이 깔끔하게 맞아떨어져요.' },
-  { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', desc: '밝은 우드 + 화이트. 채광 좋은 감성적인 무드.',
-    tip: '밝은 우드와 화이트로 채광을 살려요. 러그·소품 하나만 더해도 감성적인 방이 돼요.' },
+  { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', desc: '화이트·그레이에 우드 한 끗. 군더더기 없이 차분해서, 집중도 잘 되고 뭘 놔도 정돈돼 보이는 방.',
+    tip: '차분한 그레이 톤이라 책상에 앉으면 집중이 잘 돼요. 화이트 벽이든 좁은 방이든 깔끔하게 맞아떨어져요.' },
+  { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', desc: '밝은 우드와 화이트가 채광을 머금는 톤. 별것 안 해도 따뜻하고 감성적인, 카페 같은 방.',
+    tip: '밝은 우드가 빛을 부드럽게 퍼뜨려요. 작은 자취방도 넓고 포근해 보이고, 러그·조명 하나면 분위기가 확 살아요.' },
 ];
 function toneByKey(key) {
   return TONES.find((t) => t.key === key) || null;
@@ -508,7 +508,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
       )}
       <div className="flex items-center justify-between px-3 py-2" style={{ background: 'var(--ink)' }}>
         <span className="idn-display font-bold text-sm" style={{ color: '#fff' }}>추천: {name}</span>
-        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>마음에 안 들면 바꿔보세요</span>
+        <span className="text-[10px]" style={{ color: '#fff', opacity: 0.6 }}>톤에 맞춰 골라뒀어요</span>
       </div>
       <div className="px-3 py-2.5">
         <div className="space-y-1 mb-2">
@@ -1667,9 +1667,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       {step === 'tone' && (
         <div className="px-4 pt-3 space-y-3">
           <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
-            <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>어떤 방에서 살고 싶으세요?</h3>
+            <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>톤만 고르세요. 가구는 저희가 골라드려요.</h3>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-              분위기를 고르면 그에 맞는 가구를 골라드려요. 내 방을 직접 고르는 거예요.
+              자취방 가구 일일이 비교하느라 지치셨죠. 원하는 분위기만 정하면, 톤에 맞는 프리미엄 가구를 가성비로 골라 한 세트로 맞춰드려요.
             </p>
           </div>
           {TONES.map((t) => (
@@ -1835,7 +1835,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       <div className="px-4 mt-5">
         <div className="flex items-center gap-1.5 mb-2">
           <LayoutGrid size={16} style={{ color: 'var(--ink)' }} />
-          <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>필요한 가구를 골라주세요</span>
+          <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>직접 더 골라 담아도 돼요</span>
         </div>
         <div className="grid grid-cols-4 gap-1.5">
           {CATEGORIES.map((c) => {

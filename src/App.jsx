@@ -525,7 +525,7 @@ function PackageCard({ products, roomHas, earlyBird, earlyBirdDiscount, regionDi
         ))}
       </div>
       {packageImage && (
-        <img src={packageImage} alt={`${name} 완성 사진`} className="w-full h-32 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
+        <img src={packageImage} alt={`${name} 완성 사진`} loading="lazy" decoding="async" className="w-full h-32 object-cover border-b-2" style={{ borderColor: 'var(--ink)' }} />
       )}
       <div className="px-3 py-2" style={{ background: 'var(--ink)' }}>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -806,7 +806,7 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
       style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}
     >
       {thumb ? (
-        <img src={thumb} alt={product.name} className="w-full h-28 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+        <img src={thumb} alt={product.name} loading="lazy" decoding="async" className="w-full h-28 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
       ) : (
         <div className="idn-hatch w-full h-28 flex items-center justify-center border-b" style={{ borderColor: 'var(--line)' }}>
           <Icon size={26} style={{ color: 'var(--ink)', opacity: 0.3 }} />
@@ -1028,7 +1028,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       {product.detailImages?.length > 0 && (
         <div className="mt-1 space-y-0">
           {product.detailImages.map((img, i) => (
-            <img key={i} src={img} alt={`${product.name} 상세 ${i + 1}`} className="w-full block" />
+            <img key={i} src={img} alt={`${product.name} 상세 ${i + 1}`} loading="lazy" decoding="async" className="w-full block" />
           ))}
         </div>
       )}
@@ -1710,6 +1710,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
 
       {step === 'tone' && (
         <div className="px-4 pt-3 space-y-3">
+          <p className="idn-display text-center text-[15px] font-bold tracking-tight" style={{ color: 'var(--gold)' }}>
+            선택의 설렘만, 나머지는 D가구가.
+          </p>
           <div className="border-2 px-3.5 py-3" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
             <h3 className="idn-display font-bold text-base" style={{ color: 'var(--ink)' }}>톤만 고르세요. 가구는 저희가 골라드려요.</h3>
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.7 }}>
@@ -1728,7 +1731,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
               }}
             >
               <div className="relative">
-                <img src={t.img} alt={t.label} className="w-full h-40 object-cover" style={{ display: 'block' }} />
+                <img src={t.img} alt={t.label} loading="lazy" decoding="async" className="w-full h-40 object-cover" style={{ display: 'block' }} />
                 {selectedTone === t.key && (
                   <div className="absolute top-2 right-2 idn-seal w-7 h-7 text-[9px]" style={{ background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }}>선택</div>
                 )}

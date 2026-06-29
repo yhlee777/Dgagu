@@ -877,6 +877,11 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
     onBack();
   }
 
+  // activeImg가 빈 칸을 가리키면 사진이 있는 첫 칸으로 안전하게 떨어뜨려요 (빠르게 넘길 때 잠깐 비는 것 방지)
+  const safeActive = galleryImages[activeImg] ? activeImg : (filledImageIdx[0] ?? 0);
+  // 상품이나 톤이 바뀌면 첫 사진으로 리셋
+  useEffect(() => { setActiveImg(filledImageIdx[0] ?? 0); }, [product.id, selectedTone]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="pb-28">
       {/* 항상 화면 좌상단에 고정되는 뒤로가기 — 스크롤해도 따라와요. 상단 헤더 바로 아래에 자리잡아요 */}
@@ -894,13 +899,13 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       </div>
       {/* gallery */}
       <div className="relative">
-        {galleryImages?.[activeImg] ? (
-          <img src={galleryImages[activeImg]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+        {galleryImages?.[safeActive] ? (
+          <img src={galleryImages[safeActive]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
         ) : (
           <div className="idn-hatch w-full h-64 flex flex-col items-center justify-center gap-1 border-b text-center px-10" style={{ borderColor: 'var(--line)' }}>
             <Icon size={32} style={{ color: 'var(--ink)', opacity: 0.3 }} />
-            <span className="text-xs font-bold mt-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{IMAGE_SLOTS[activeImg].label} 준비중</span>
-            <span className="text-[10px]" style={{ color: 'var(--ink)', opacity: 0.35 }}>{IMAGE_SLOTS[activeImg].hint}</span>
+            <span className="text-xs font-bold mt-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>{IMAGE_SLOTS[safeActive].label} 준비중</span>
+            <span className="text-[10px]" style={{ color: 'var(--ink)', opacity: 0.35 }}>{IMAGE_SLOTS[safeActive].hint}</span>
           </div>
         )}
         <span
@@ -915,7 +920,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       {filledImageIdx.length > 1 && (
         <div className="flex gap-1.5 px-4 pt-2 pb-1">
           {filledImageIdx.map((i) => {
-            const active = activeImg === i;
+            const active = safeActive === i;
             return (
               <button key={i} onClick={() => setActiveImg(i)} className="flex-1 min-w-0 text-left">
                 <div className="w-full aspect-square overflow-hidden" style={{ border: active ? '2px solid var(--ink)' : '1px solid var(--line)' }}>
@@ -989,7 +994,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       <div className="px-4">
         {longDesc && (
           <Section title="제품 소개">
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.8 }}>{longDesc}</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.8, whiteSpace: 'pre-line' }}>{longDesc}</p>
           </Section>
         )}
       </div>

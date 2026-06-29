@@ -1285,6 +1285,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [orderId, setOrderId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [shared, setShared] = useState(false);
+  const [copiedAcct, setCopiedAcct] = useState(false);
 
   useEffect(() => { setAddress(initialAddress); }, [initialAddress]);
 
@@ -1316,7 +1317,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setDone(false); setOrderId(null); setShared(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setDone(false); setOrderId(null); setShared(false); setCopiedAcct(false); onClose();
   }
 
   return (
@@ -1481,26 +1482,25 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
             <div className="mt-3">
               <BankTransferBox bankAccount={bankAccount} amount={total} name={name} />
             </div>
-            <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              입금이 확인되면 도매처에서 댁으로 직접 배송돼요.<br />도착 일정은 카카오톡으로 안내드려요.
-            </p>
-            <div className="border-t mt-4 pt-4" style={{ borderColor: 'var(--line)' }}>
-              <p className="text-xs mb-2" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                내 카톡(나와의 채팅)에 저장해두면<br />나중에 링크로 진행상황을 볼 수 있어요
-              </p>
+            {bankAccount?.number && (
               <button
-                onClick={() => { if (shareKakao({ name, moveInDate, total, items: cartEntries, orderId })) setShared(true); }}
-                disabled={submitting}
-                className="w-full py-2.5 font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ background: '#FEE500', color: '#191919' }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(String(bankAccount.number).replace(/[^0-9]/g, ''));
+                    setCopiedAcct(true);
+                    setTimeout(() => setCopiedAcct(false), 2000);
+                  } catch { /* 클립보드 막힘 — 위 계좌 박스에서 복사하면 돼요 */ }
+                }}
+                className="w-full py-3 font-bold text-sm mt-3 flex items-center justify-center gap-2"
+                style={{ background: 'var(--ink)', color: '#fff' }}
               >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M9 1.5C4.86 1.5 1.5 4.2 1.5 7.5c0 2.07 1.23 3.9 3.09 4.98L3.75 15l3.3-1.71C7.65 13.41 8.31 13.5 9 13.5c4.14 0 7.5-2.7 7.5-6S13.14 1.5 9 1.5z" fill="#191919"/>
-                </svg>
-                {submitting ? '준비 중...' : shared ? '저장됨 ✓' : '내 카톡에 저장하기'}
+                {copiedAcct ? <><Check size={16} /> 계좌번호가 복사됐어요</> : '입금 계좌번호 복사하기'}
               </button>
-            </div>
-            <div className="mt-3">
+            )}
+            <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+              복사한 계좌로 송금하시면 돼요. 입금이 확인되면 도매처에서 댁으로 직접 배송되고,<br />주문 접수 안내와 진행상황은 카카오톡으로 보내드렸어요.
+            </p>
+            <div className="mt-4">
               <KakaoInquiryButton label="배송·문의는 카카오톡으로" />
             </div>
             <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>

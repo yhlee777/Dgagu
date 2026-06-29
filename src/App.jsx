@@ -1592,7 +1592,7 @@ function defaultProductForCategory(products, catId, toneKey = null) {
 function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation }) {
   const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
   const [selectedTone, setSelectedTone] = useState(null);
-  const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
+  const [roomHas, setRoomHas] = useState({ bedframe: true, desk: true, wardrobe: true });
   const [moveInDate, setMoveInDate] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
@@ -1780,34 +1780,57 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
             </p>
           </div>
           <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-            <h3 className="idn-display font-bold text-base mb-1" style={{ color: 'var(--ink)' }}>내 방에 뭐가 있나요?</h3>
-            <p className="text-xs mb-1" style={{ color: 'var(--ink)', opacity: 0.6 }}>이미 있는 건 빼고, 필요한 것만 보여드릴게요</p>
-            {ROOM_CHECK_ITEMS.map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-2.5 border-t" style={{ borderColor: 'var(--line)' }}>
-                <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.label}</span>
-                <div className="flex gap-1.5">
-                  {[{ v: true, label: '있어요' }, { v: false, label: '없어요' }].map((opt) => (
-                    <button
-                      key={String(opt.v)}
-                      onClick={() => setRoomHas((h) => ({ ...h, [item.id]: opt.v }))}
-                      className="px-3 py-1.5 text-xs font-bold border"
-                      style={{
-                        borderColor: 'var(--ink)',
-                        background: roomHas[item.id] === opt.v ? 'var(--ink)' : 'transparent',
-                        color: roomHas[item.id] === opt.v ? '#fff' : 'var(--ink)',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <h3 className="idn-display font-bold text-base mb-1" style={{ color: 'var(--ink)' }}>필요한 가구를 체크해주세요</h3>
+            <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.6 }}>이미 있는 건 빼고, 필요한 것만 골라드려요</p>
+
+            {(() => {
+              const allNeeded = ROOM_CHECK_ITEMS.every((i) => roomHas[i.id] === false);
+              return (
+                <button
+                  onClick={() => {
+                    const target = allNeeded ? true : false; // 다 필요한 상태면 해제, 아니면 전부 필요로 체크
+                    setRoomHas(Object.fromEntries(ROOM_CHECK_ITEMS.map((i) => [i.id, target])));
+                  }}
+                  className="w-full py-2.5 mb-1 font-bold text-sm border-2 flex items-center justify-center gap-1.5"
+                  style={{
+                    borderColor: 'var(--gold)',
+                    background: allNeeded ? 'var(--gold)' : 'transparent',
+                    color: allNeeded ? '#fff' : 'var(--ink)',
+                  }}
+                >
+                  {allNeeded ? <><Check size={15} /> 빈 방 — 다 필요해요</> : '빈 방이에요 — 다 필요해요'}
+                </button>
+              );
+            })()}
+
+            {ROOM_CHECK_ITEMS.map((item) => {
+              const need = roomHas[item.id] === false;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setRoomHas((h) => ({ ...h, [item.id]: need ? true : false }))}
+                  className="w-full flex items-center gap-2.5 py-3 border-t text-left"
+                  style={{ borderColor: 'var(--line)' }}
+                >
+                  <span
+                    className="w-5 h-5 flex items-center justify-center border-2 flex-shrink-0"
+                    style={{
+                      borderColor: need ? 'var(--ink)' : 'var(--line)',
+                      background: need ? 'var(--ink)' : 'transparent',
+                      color: '#fff',
+                    }}
+                  >
+                    {need && <Check size={13} />}
+                  </span>
+                  <span className="text-sm font-bold" style={{ color: 'var(--ink)', opacity: need ? 1 : 0.5 }}>{item.label}</span>
+                  {!need && <span className="ml-auto text-[11px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>이미 있어요</span>}
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={handleRoomNext}
-            disabled={Object.values(roomHas).some((v) => v === null)}
-            className="w-full py-3 font-bold text-sm disabled:opacity-30"
+            className="w-full py-3 font-bold text-sm"
             style={{ background: 'var(--ink)', color: '#fff' }}
           >
             다음 — 가구 선택

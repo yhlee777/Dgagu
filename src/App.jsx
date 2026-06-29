@@ -1281,6 +1281,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
   const [addressDetail, setAddressDetail] = useState('');
+  const [referralSource, setReferralSource] = useState('');
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1312,12 +1313,12 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
+    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setDone(false); setOrderId(null); setShared(false); setCopiedAcct(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setReferralSource(''); setDone(false); setOrderId(null); setShared(false); setCopiedAcct(false); onClose();
   }
 
   return (
@@ -1458,6 +1459,19 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                     />
                   )}
                 </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>
+                  추천 부동산 <span style={{ opacity: 0.5, fontWeight: 400 }}>(선택 — 소개받으셨다면 알려주세요)</span>
+                </label>
+                <input
+                  value={referralSource}
+                  onChange={(e) => setReferralSource(e.target.value)}
+                  placeholder="예: 건대공인중개사"
+                  className="w-full border px-3 py-2 text-sm"
+                  style={{ borderColor: 'var(--line)' }}
+                />
               </div>
 
               <button
@@ -2872,7 +2886,7 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
 
   const agentCount = {};
   reservations.forEach((r) => {
-    const key = r.referralAgent || '직접 방문';
+    const key = r.referralAgent || r.referralSource || '직접 방문';
     agentCount[key] = (agentCount[key] || 0) + 1;
   });
   const agentRanking = Object.entries(agentCount).sort((a, b) => b[1] - a[1]);
@@ -3021,6 +3035,11 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
                 {r.referralAgent && (
                   <div className="text-[11px] mb-1.5 inline-block px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
                     추천: {r.referralAgent}
+                  </div>
+                )}
+                {r.referralSource && (
+                  <div className="text-[11px] mb-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
+                    <Users size={11} /> 부동산: {r.referralSource}
                   </div>
                 )}
                 {r.address && (
@@ -3445,12 +3464,18 @@ export default function App() {
     const payload = {
       name: r.name, phone: r.phone, address: r.address,
       moveInDate: r.moveInDate, earlyBird: r.earlyBird, roomHas: r.roomHas, referralAgent: r.referralAgent || null,
+      referralSource: r.referralSource || null,
       serviceFeeTotal: r.serviceFeeTotal || 0,
       items: itemsWithTone, subtotal: r.subtotal, total: r.total, savings: r.savings, ts: r.ts,
       status: 'received',
     };
     setReservations((rs) => [...rs, payload]);
-    const { error } = await supabase.from('reservations').insert(payload);
+    let { error } = await supabase.from('reservations').insert(payload);
+    if (error && /referralSource/i.test(error.message || '')) {
+      // referralSource 컬럼이 아직 없으면, 그 값만 빼고 다시 저장해서 주문 자체는 살려요.
+      const { referralSource, ...fallback } = payload;
+      ({ error } = await supabase.from('reservations').insert(fallback));
+    }
     if (error) { console.error('reservation save failed', error); return null; }
     // 예약 접수 알림톡 자동발송 — Supabase Edge Function(send-alimtalk)이 솔라피로 ①번 템플릿을 쏴요.
     // 실패해도 예약 자체엔 영향 없게 fire-and-forget. (함수 미배포 시엔 콘솔 경고만 떠요)

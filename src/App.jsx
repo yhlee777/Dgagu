@@ -5,7 +5,7 @@ import {
   Plus, Minus, Pencil, Trash2, ImagePlus, Settings2, ClipboardList, Package,
   Phone, User, MapPin, ArrowLeft, LayoutGrid, Wallet,
   Users, Trophy, BadgePercent, Ruler, Layers,
-  ChevronLeft, ChevronRight, Lock, Search, Check, ShieldCheck,
+  ChevronLeft, ChevronRight, Lock, Search, Check, ShieldCheck, MessageCircle,
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { resizeImage, readFileAsDataURL } from './lib/resizeImage';
@@ -183,6 +183,7 @@ function serviceFeeFor(_product) {
   return 0;
 }
 const SITE_URL = 'https://dgagu.com';
+const KAKAO_CHAT_URL = 'https://pf.kakao.com/_zxjtXX/chat'; // 카카오톡 채널 1:1 문의(상담) 링크
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
 // 예약에 저장할 상품 정보는 사진(images/detailImages)을 빼고 화면표시에 필요한 것만 남겨요.
 // 안 그러면 예약 1건마다 상품 사진(원본 base64)이 통째로 복제 저장돼서 테이블이 급격히 무거워져요.
@@ -1260,6 +1261,21 @@ function BankTransferBox({ bankAccount, amount, name }) {
   );
 }
 
+// 카카오톡 1:1 문의 버튼 — 배송·하자 등 문의 창구 (채널 채팅으로 바로 연결)
+function KakaoInquiryButton({ label = '카카오톡으로 문의하기', full = true }) {
+  return (
+    <a
+      href={KAKAO_CHAT_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center justify-center gap-1.5 font-bold text-sm ${full ? 'w-full py-3' : 'px-3 py-2'}`}
+      style={{ background: 'var(--surface)', color: 'var(--ink)', border: '1.5px solid var(--ink)' }}
+    >
+      <MessageCircle size={16} style={{ color: 'var(--gold)' }} /> {label}
+    </a>
+  );
+}
+
 function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, bankAccount, onSubmit, onRemoveItem }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -1483,6 +1499,9 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 </svg>
                 {submitting ? '준비 중...' : shared ? '저장됨 ✓' : '내 카톡에 저장하기'}
               </button>
+            </div>
+            <div className="mt-3">
+              <KakaoInquiryButton label="배송·문의는 카카오톡으로" />
             </div>
             <button onClick={handleClose} className="mt-3 px-6 py-2.5 font-bold text-sm border-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
               닫기
@@ -3239,6 +3258,13 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
         </div>
       )}
 
+      <div className="px-1">
+        <p className="text-xs text-center mb-2" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          배송 일정이나 하자 등 궁금한 점이 있으면 편하게 물어보세요.
+        </p>
+        <KakaoInquiryButton label="카카오톡으로 문의하기" />
+      </div>
+
       <p className="text-center text-[11px]" style={{ color: 'var(--ink)', opacity: 0.4 }}>
         이 페이지는 카카오톡으로 받은 링크로 언제든 다시 들어올 수 있어요.
       </p>
@@ -3472,6 +3498,12 @@ export default function App() {
         }
       </div>
 
+      <div className="text-center pt-4 pb-1">
+        <a href={KAKAO_CHAT_URL} target="_blank" rel="noopener noreferrer"
+           className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+          <MessageCircle size={13} style={{ color: 'var(--gold)' }} /> 카카오톡 문의 · 고객센터
+        </a>
+      </div>
       <div className="text-center idn-mono text-[10px] py-3 border-t" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.4 }}>
         <div>상호명: D가구 &nbsp;|&nbsp; 대표자: 이영훈 &nbsp;|&nbsp; 사업자등록번호: 440-04-03751</div>
         <div className="mt-1">사업장 소재지: 서울시 광진구 광장동 아차산로 549 &nbsp;|&nbsp; friends292198@gmail.com</div>

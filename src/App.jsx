@@ -203,7 +203,8 @@ function buildReservationMessage(r, bankAccount = {}) {
   lines.push('주문 내역:');
   (r.items || []).forEach((it) => {
     const qtyLabel = it.qty > 1 ? ` ×${it.qty}` : '';
-    lines.push(`· ${it.product?.name || ''}${qtyLabel}`);
+    const optLabel = it.option ? ` (${it.option.label})` : '';
+    lines.push(`· ${it.product?.name || ''}${optLabel}${qtyLabel}`);
   });
   lines.push('');
   lines.push(`입금액: ${won(r.total)} (전액 선결제)`);
@@ -843,15 +844,19 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
-function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct, selectedTone = null }) {
+function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct, selectedTone = null, initialOptIdx = 0 }) {
   const galleryImages = imagesForTone(product, selectedTone);
   const filledImageIdx = galleryImages.reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(filledImageIdx[0] ?? 0);
+  const optionChoices = product.option?.choices || [];
+  const hasOption = optionChoices.length > 0;
+  const [optIdx, setOptIdx] = useState(Math.min(initialOptIdx || 0, Math.max(optionChoices.length - 1, 0)));
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
   const Icon = CAT_BY_ID[product.category]?.icon || Package;
-  const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
+  const optDelta = hasOption ? (Number(optionChoices[optIdx]?.delta) || 0) : 0;
+  const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount) + optDelta;
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
   const hasDiscount = discPct > 0;
   const longDesc = product.detail || product.desc;
@@ -868,7 +873,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
     .slice(0, 4);
 
   function commit(newQty) {
-    onUpdateCart(product.id, newQty);
+    onUpdateCart(product.id, newQty, optIdx);
     onBack();
   }
 
@@ -940,6 +945,44 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
               {h}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 옵션 선택 (예: 다리 높이) */}
+      {hasOption && (
+        <div className="px-4 mt-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="idn-display font-bold text-sm" style={{ color: 'var(--ink)' }}>{product.option.name}</span>
+            <span className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>골라주세요</span>
+          </div>
+          <div className="space-y-1.5">
+            {optionChoices.map((ch, i) => {
+              const active = i === optIdx;
+              const delta = Number(ch.delta) || 0;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setOptIdx(i)}
+                  className="w-full flex items-center justify-between gap-2 border px-3 py-2.5 text-left"
+                  style={{
+                    borderColor: active ? 'var(--ink)' : 'var(--line)',
+                    borderWidth: active ? '2px' : '1px',
+                    background: active ? 'color-mix(in srgb, var(--ink) 5%, var(--surface))' : 'var(--surface)',
+                  }}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0" style={{ borderColor: active ? 'var(--ink)' : 'var(--line)' }}>
+                      {active && <span className="w-2 h-2 rounded-full" style={{ background: 'var(--ink)' }} />}
+                    </span>
+                    <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{ch.label}</span>
+                  </span>
+                  <span className="idn-mono text-xs font-bold flex-shrink-0" style={{ color: delta > 0 ? 'var(--stamp)' : 'var(--ink)', opacity: delta > 0 ? 1 : 0.4 }}>
+                    {delta > 0 ? `+${won(delta)}` : '기본'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1258,9 +1301,16 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                             : Icon ? <Icon size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} /> : null
                           }
                         </span>
-                        <span className="truncate">
-                          {catLabel(it.product.category)} · {it.product.name}
-                          {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                        <span className="min-w-0">
+                          <span className="truncate block">
+                            {catLabel(it.product.category)} · {it.product.name}
+                            {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                          </span>
+                          {it.option && (
+                            <span className="block text-[10px] truncate" style={{ opacity: 0.75 }}>
+                              {it.option.name}: {it.option.label}
+                            </span>
+                          )}
                         </span>
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0 ml-2">
@@ -1468,6 +1518,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const [moveInDate, setMoveInDate] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
+  const [cartOptions, setCartOptions] = useState({}); // productId -> 선택한 옵션 인덱스 (예: 다리 높이)
   const [detailId, setDetailId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
@@ -1496,22 +1547,34 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   function toggleCategory(catId) {
     setChecked((c) => ({ ...c, [catId]: !c[catId] }));
   }
-  function updateCart(productId, qty) {
+  function updateCart(productId, qty, optIdx) {
     setCart((c) => {
       const next = { ...c };
       if (qty <= 0) delete next[productId];
       else next[productId] = qty;
       return next;
     });
+    setCartOptions((o) => {
+      const next = { ...o };
+      if (qty <= 0) delete next[productId];
+      else if (optIdx != null) next[productId] = optIdx;
+      return next;
+    });
   }
 
   const cartEntries = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((p) => p.id === id);
-    const unitPrice = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount);
+    const choices = product?.option?.choices || [];
+    const optIdx = cartOptions[id] ?? 0;
+    const chosen = product?.option && choices[optIdx]
+      ? { name: product.option.name, label: choices[optIdx].label, delta: Number(choices[optIdx].delta) || 0 }
+      : null;
+    const optDelta = chosen?.delta || 0;
+    const unitPrice = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount) + optDelta;
     const unitServiceFee = serviceFeeFor(product);
     return {
-      product, qty, unitPrice, unitServiceFee,
-      lineBase: product.basePrice * qty,
+      product, qty, unitPrice, unitServiceFee, option: chosen,
+      lineBase: (product.basePrice + optDelta) * qty,
       lineTotal: (unitPrice + unitServiceFee) * qty,
     };
   });
@@ -1537,6 +1600,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     setModalOpen(false);
     if (reservationDoneRef.current) {
       setCart({});
+      setCartOptions({});
       reservationDoneRef.current = false;
     }
   }
@@ -1558,6 +1622,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         onBack={() => setDetailId(null)}
         onSelectProduct={(pid) => setDetailId(pid)}
         selectedTone={selectedTone}
+        initialOptIdx={cartOptions[detailProduct.id] ?? 0}
       />
     );
   }
@@ -1881,6 +1946,8 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       grey: initial?.toneImages?.grey?.length ? [...initial.toneImages.grey, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
       scandi: initial?.toneImages?.scandi?.length ? [...initial.toneImages.scandi, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
     },
+    optionName: initial?.option?.name || '',
+    optionChoices: initial?.option?.choices?.length ? initial.option.choices.map((c) => ({ label: c.label || '', delta: c.delta ?? 0 })) : [],
   }));
 
   function set(field, value) {
@@ -1951,6 +2018,19 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       return { ...f, highlights: h };
     });
   }
+  // 옵션(예: 다리 높이) — 선택지 추가/수정/삭제
+  function addOptionChoice() {
+    setForm((f) => ({ ...f, optionChoices: [...f.optionChoices, { label: '', delta: 0 }] }));
+  }
+  function setOptionChoice(i, field, value) {
+    setForm((f) => {
+      const arr = f.optionChoices.map((c, idx) => (idx === i ? { ...c, [field]: value } : c));
+      return { ...f, optionChoices: arr };
+    });
+  }
+  function removeOptionChoice(i) {
+    setForm((f) => ({ ...f, optionChoices: f.optionChoices.filter((_, idx) => idx !== i) }));
+  }
 
   function handleSave() {
     if (!form.name.trim()) return;
@@ -1977,6 +2057,14 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         grey: (form.toneImages?.grey || []).filter(Boolean),
         scandi: (form.toneImages?.scandi || []).filter(Boolean),
       },
+      option: (form.optionName.trim() && form.optionChoices.some((c) => c.label.trim()))
+        ? {
+            name: form.optionName.trim(),
+            choices: form.optionChoices
+              .filter((c) => c.label.trim())
+              .map((c) => ({ label: c.label.trim(), delta: Number(c.delta) || 0 })),
+          }
+        : null,
     });
   }
 
@@ -2210,6 +2298,66 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         </div>
 
         <div className="col-span-2">
+          <label className={labelCls} style={{ color: 'var(--ink)' }}>옵션 (선택 — 예: 다리 높이)</label>
+          <p className="text-[11px] mb-2" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+            손님이 상세페이지에서 고르는 추가 선택지예요. 옵션 이름(예: 다리 높이)을 쓰고, 선택지마다 추가금액을 넣으면 그만큼 가격이 올라가요(기본은 0). 손님이 고른 옵션은 주문·발주에 같이 표시돼요. 안 쓰면 비워두세요.
+          </p>
+          <input
+            type="text"
+            value={form.optionName}
+            onChange={(e) => set('optionName', e.target.value)}
+            placeholder="옵션 이름 (예: 다리 높이)"
+            className="w-full border px-3 py-2 text-sm mb-2"
+            style={{ borderColor: 'var(--line)' }}
+          />
+          {form.optionChoices.length > 0 && (
+            <div className="space-y-1.5 mb-2">
+              {form.optionChoices.map((c, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={c.label}
+                    onChange={(e) => setOptionChoice(i, 'label', e.target.value)}
+                    placeholder="선택지 (예: 다리 50mm / 총 80mm)"
+                    className="flex-1 border px-2 py-1.5 text-sm min-w-0"
+                    style={{ borderColor: 'var(--line)' }}
+                  />
+                  <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink)', opacity: 0.5 }}>+</span>
+                  <input
+                    type="number"
+                    value={c.delta}
+                    onChange={(e) => setOptionChoice(i, 'delta', e.target.value)}
+                    placeholder="0"
+                    className="w-20 border px-2 py-1.5 text-sm idn-mono text-right flex-shrink-0"
+                    style={{ borderColor: 'var(--line)' }}
+                  />
+                  <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink)', opacity: 0.5 }}>원</span>
+                  <button
+                    type="button"
+                    onClick={() => removeOptionChoice(i)}
+                    className="p-1.5 border flex-shrink-0"
+                    style={{ borderColor: 'var(--line)' }}
+                  >
+                    <Trash2 size={13} style={{ color: 'var(--stamp)' }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={addOptionChoice}
+            className="w-full py-2 text-xs font-bold border"
+            style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
+          >
+            + 선택지 추가
+          </button>
+          <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink)', opacity: 0.45 }}>
+            예: "다리 5mm (총 35mm)" +0원 / "다리 50mm (총 80mm)" +10000원 / "다리 100mm (총 130mm)" +20000원. 맨 위 선택지가 기본값으로 떠요.
+          </p>
+        </div>
+
+        <div className="col-span-2">
           <label className={labelCls} style={{ color: 'var(--ink)' }}>내부 메모 (비공개 — 고객에게 노출 안 됨)</label>
           <textarea
             value={form.reviewNote} onChange={(e) => set('reviewNote', e.target.value)}
@@ -2266,19 +2414,20 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
   const [editing, setEditing] = useState(null); // null | 'new' | product
 
   async function handleSave(data) {
-    const { toneImages, ...rest } = data;
+    const { toneImages, option, ...rest } = data;
     if (data.id) {
       setProducts((ps) => ps.map((p) => (p.id === data.id ? { ...p, ...data } : p)));
       const { error } = await supabase.from('products').update(rest).eq('id', data.id);
       if (error) console.error('product save failed', error);
       saveToneImages(data.id, toneImages);
+      saveOption(data.id, option);
     } else {
       const id = `p${Date.now()}`;
       const created = makeProduct({ ...rest, id });
-      setProducts((ps) => [...ps, { ...created, toneImages }]);
+      setProducts((ps) => [...ps, { ...created, toneImages, option }]);
       const { error } = await supabase.from('products').insert(created);
       if (error) console.error('product save failed', error);
-      else saveToneImages(id, toneImages);
+      else { saveToneImages(id, toneImages); saveOption(id, option); }
     }
     setEditing(null);
   }
@@ -2287,6 +2436,11 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
     if (!toneImages) return;
     supabase.from('products').update({ toneImages }).eq('id', id)
       .then(({ error }) => error && console.error("톤별 색상 사진 저장 실패 — products 테이블에 'toneImages' jsonb 컬럼이 필요해요", error));
+  }
+  // 옵션도 별도 컬럼 — 컬럼이 없어도 상품 저장이 안 깨지게 따로 저장해요
+  function saveOption(id, option) {
+    supabase.from('products').update({ option: option ?? null }).eq('id', id)
+      .then(({ error }) => error && console.error("옵션 저장 실패 — products 테이블에 'option' jsonb 컬럼이 필요해요", error));
   }
   async function handleDelete(id) {
     setProducts((ps) => ps.filter((p) => p.id !== id));
@@ -2827,6 +2981,7 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
                       <span style={{ color: 'var(--ink)', opacity: 0.65 }}>
                         {catLabel(it.product.category)} · {it.product.name}
                         {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                        {it.option && <span style={{ opacity: 0.85 }}> · {it.option.label}</span>}
                       </span>
                       <span className="idn-mono" style={{ color: 'var(--ink)' }}>{won(it.lineTotal)}</span>
                     </div>
@@ -2905,6 +3060,11 @@ function AdminOrders({ reservations, products }) {
                             {it.tone && hasColorVariant && toneByKey(it.tone) && (
                               <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
                                 {toneByKey(it.tone).label}
+                              </span>
+                            )}
+                            {it.option && (
+                              <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
+                                {it.option.label}
                               </span>
                             )}
                           </span>
@@ -3013,6 +3173,7 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
               <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
                 {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
                 {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                {it.option && <span style={{ opacity: 0.85 }}> · {it.option.label}</span>}
               </span>
               <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
             </div>

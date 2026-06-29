@@ -1472,6 +1472,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const [cart, setCart] = useState({}); // productId -> qty
   const [detailId, setDetailId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
 
   useEffect(() => { window.scrollTo(0, 0); }, [step]);
 
@@ -1527,8 +1528,17 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const savings = subtotal - (total - serviceFeeTotal);
 
   function handleReserve() {
-    if (!moveInDate) { setStep('date'); return; }
+    if (!moveInDate) { setPendingReserve(true); setStep('date'); return; }
     setModalOpen(true);
+  }
+  // 날짜를 고르면 — 예약 흐름(예약하기로 넘어온 경우)에선 바로 정보 입력 팝업을 띄워요
+  function handleDatePick(dateStr) {
+    setMoveInDate(dateStr);
+    if (pendingReserve && Object.keys(cart).length > 0) {
+      setPendingReserve(false);
+      setStep('shop');
+      setModalOpen(true);
+    }
   }
   async function handleSubmitReservation(payload) {
     return onAddReservation({ ...payload, tone: selectedTone });
@@ -1685,22 +1695,29 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
 
       {step === 'date' && (
         <div className="px-4 pt-3 space-y-3">
-          <MoveInCalendar value={moveInDate} onChange={setMoveInDate} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
+          {pendingReserve && (
+            <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 10%, var(--surface))' }}>
+              <p className="text-[12.5px] font-bold leading-relaxed" style={{ color: 'var(--ink)' }}>
+                배송받을 날짜를 고르면 바로 예약 정보 입력으로 넘어가요.
+              </p>
+            </div>
+          )}
+          <MoveInCalendar value={moveInDate} onChange={handleDatePick} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />
           <div className="flex gap-2">
             <button
-              onClick={() => setStep('shop')}
+              onClick={() => { setPendingReserve(false); setStep('shop'); }}
               className="flex-shrink-0 px-4 py-3 font-bold text-sm border-2"
               style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
             >
               이전
             </button>
             <button
-              onClick={() => setStep('shop')}
+              onClick={() => { if (pendingReserve && Object.keys(cart).length > 0) { setPendingReserve(false); setStep('shop'); setModalOpen(true); } else { setStep('shop'); } }}
               disabled={!moveInDate}
               className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
               style={{ background: 'var(--ink)', color: '#fff' }}
             >
-              이 날짜로 설정
+              {pendingReserve ? '이 날짜로 예약 진행' : '이 날짜로 설정'}
             </button>
           </div>
         </div>
@@ -1761,7 +1778,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
       {step === 'shop' && (
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-        <button onClick={() => setStep('date')} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
+        <button onClick={() => { setPendingReserve(false); setStep('date'); }} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
           <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송 도착 희망일 선택'}
         </button>
         {fullAddress && (

@@ -184,6 +184,7 @@ function serviceFeeFor(_product) {
 }
 const SITE_URL = 'https://dgagu.com';
 const KAKAO_CHAT_URL = 'https://pf.kakao.com/_zxjtXX/chat'; // 카카오톡 채널 1:1 문의(상담) 링크
+const REFERRAL_DISCOUNT = 5000; // 추천 부동산명 입력 시 즉시 차감되는 할인액
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
 // 예약에 저장할 상품 정보는 사진(images/detailImages)을 빼고 화면표시에 필요한 것만 남겨요.
 // 안 그러면 예약 1건마다 상품 사진(원본 base64)이 통째로 복제 저장돼서 테이블이 급격히 무거워져요.
@@ -1308,12 +1309,15 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     return s + (priceNoEarly - priceWithEarly) * e.qty;
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
+  const referralDiscount = referralSource.trim() ? REFERRAL_DISCOUNT : 0;
+  const finalTotal = Math.max(0, total - referralDiscount);
+  const totalSavings = savings + referralDiscount;
 
   function handleSubmit() {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), serviceFeeTotal, items: cartEntries, subtotal, total, savings, ts: Date.now() })
+    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), referralDiscount, serviceFeeTotal, items: cartEntries, subtotal, total: finalTotal, savings: totalSavings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
@@ -1378,13 +1382,13 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
                 <div className="flex justify-between text-sm font-bold px-2.5 py-2 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
                   <span>합계</span>
-                  <span className="idn-display">{won(total)}</span>
+                  <span className="idn-display">{won(finalTotal)}</span>
                 </div>
               </div>
               <p className="text-[11px] text-center mb-3 -mt-1" style={{ color: 'var(--ink)', opacity: 0.45 }}>
                 X를 누르면 품목을 뺄 수 있어요
               </p>
-              {savings > 0 && (
+              {(savings > 0 || referralDiscount > 0) && (
                 <div className="border mb-3 text-[11px]" style={{ borderColor: 'var(--line)' }}>
                   <div className="px-2.5 py-1.5 font-bold border-b" style={{ borderColor: 'var(--line)', color: 'var(--ink)', opacity: 0.55 }}>
                     할인 내역
@@ -1405,9 +1409,15 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                       <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(regionSavings)}</span>
                     </div>
                   )}
+                  {referralDiscount > 0 && (
+                    <div className="flex justify-between px-2.5 py-1.5 border-t" style={{ borderColor: 'var(--line)' }}>
+                      <span style={{ color: 'var(--ink)', opacity: 0.7 }}>추천 부동산 할인</span>
+                      <span className="idn-mono font-bold" style={{ color: 'var(--stamp)' }}>−{won(referralDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between px-2.5 py-1.5 border-t font-bold" style={{ borderColor: 'var(--line)', color: 'var(--stamp)' }}>
                     <span>총 절약</span>
-                    <span className="idn-mono">−{won(savings)}</span>
+                    <span className="idn-mono">−{won(totalSavings)}</span>
                   </div>
                 </div>
               )}
@@ -1463,15 +1473,20 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
 
               <div className="mb-3">
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>
-                  추천 부동산 <span style={{ opacity: 0.5, fontWeight: 400 }}>(선택 — 소개받으셨다면 알려주세요)</span>
+                  추천 부동산명 적고 <span style={{ color: 'var(--stamp)' }}>5,000원 할인</span> <span style={{ opacity: 0.5, fontWeight: 400 }}>(선택)</span>
                 </label>
                 <input
                   value={referralSource}
                   onChange={(e) => setReferralSource(e.target.value)}
                   placeholder="예: 건대공인중개사"
                   className="w-full border px-3 py-2 text-sm"
-                  style={{ borderColor: 'var(--line)' }}
+                  style={{ borderColor: referralDiscount > 0 ? 'var(--gold)' : 'var(--line)' }}
                 />
+                {referralDiscount > 0 && (
+                  <p className="text-[11px] mt-1 font-bold flex items-center gap-1" style={{ color: 'var(--stamp)' }}>
+                    <Check size={12} /> 5,000원 할인이 적용됐어요
+                  </p>
+                )}
               </div>
 
               <button
@@ -1494,7 +1509,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               예약이 접수됐어요.<br />아래 계좌로 입금하시면 바로 출고를 시작해요.
             </p>
             <div className="mt-3">
-              <BankTransferBox bankAccount={bankAccount} amount={total} name={name} />
+              <BankTransferBox bankAccount={bankAccount} amount={finalTotal} name={name} />
             </div>
             {bankAccount?.number && (
               <button
@@ -3039,7 +3054,7 @@ function AdminReservations({ reservations, bankAccount, onUpdateStatus }) {
                 )}
                 {r.referralSource && (
                   <div className="text-[11px] mb-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
-                    <Users size={11} /> 부동산: {r.referralSource}
+                    <Users size={11} /> 부동산: {r.referralSource} · 5천원 할인
                   </div>
                 )}
                 {r.address && (

@@ -320,10 +320,19 @@ function reviewLabel(n) {
   return n >= 9999 ? '9,999+' : n.toLocaleString('ko-KR');
 }
 // 시장 검증 배지 — 우리 가게 리뷰가 아니라 "이미 검증된 상품을 골라왔다"는 신뢰 표시.
-// 상품 ID 기준으로 항상 같은 배지가 나오게(매번 안 바뀌게) 정해요.
-const VERIFY_BADGES = ['시장 검증', 'MD 검증', '직접 고른 상품', '타 매장 인기'];
+// 상품 ID 기준으로 항상 같은 배지가 나오게(매번 안 바뀌게) 정해요. 배지마다 설명 문구가 달라요.
+const VERIFY_BADGES = [
+  { label: '시장 검증', msg: '여러 판매처에서 이미 검증된 상품이에요' },
+  { label: 'MD 검증', msg: 'D가구가 직접 보고 골라낸 상품이에요' },
+  { label: '직접 고른 상품', msg: '수많은 가구 중 직접 골라 들인 상품이에요' },
+  { label: '타 매장 인기', msg: '다른 매장에서도 잘 나가는 검증된 상품이에요' },
+];
 function verifyBadge(product) {
-  if (product?.badge) return product.badge; // 상품에 직접 지정한 게 있으면 우선
+  if (product?.badge) {
+    // 상품에 직접 지정한 게 있으면 우선 — 목록에 있으면 그 문구, 없으면 라벨만
+    const found = VERIFY_BADGES.find((b) => b.label === product.badge);
+    return found || { label: product.badge, msg: '이미 검증된 상품이에요' };
+  }
   const key = String(product?.id || '');
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -816,7 +825,7 @@ function ProductCard({ product, earlyBird, earlyBirdDiscount = 0, regionDiscount
         </div>
         <div className="flex items-center gap-1 mt-1.5">
           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)' }}>
-            <ShieldCheck size={11} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)}
+            <ShieldCheck size={11} style={{ color: 'var(--gold)' }} /> {verifyBadge(product).label}
           </span>
         </div>
         <div className="mt-1.5">
@@ -869,6 +878,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
   useEffect(() => { window.scrollTo(0, 0); }, [product.id]);
 
   const Icon = CAT_BY_ID[product.category]?.icon || Package;
+  const badge = verifyBadge(product);
   const optDelta = hasOption ? (Number(optionChoices[optIdx]?.delta) || 0) : 0;
   const price = priceFor(product, earlyBird, regionDiscount, earlyBirdDiscount) + optDelta;
   const discPct = totalDiscountPct(earlyBird, regionDiscount, earlyBirdDiscount);
@@ -951,9 +961,9 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
         <h1 className="idn-display text-xl font-bold leading-snug" style={{ color: 'var(--ink)' }}>{product.name}</h1>
         <div className="flex items-center gap-1.5 mt-2">
           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)' }}>
-            <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)}
+            <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {badge.label}
           </span>
-          <span className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>이미 시장에서 검증된 상품이에요</span>
+          <span className="text-[11px]" style={{ color: 'var(--ink)', opacity: 0.5 }}>{badge.msg}</span>
         </div>
       </div>
 
@@ -1052,7 +1062,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
                 <ShieldCheck size={12} /> 검증
               </div>
               <div className="px-2.5 py-2 flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
-                <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {verifyBadge(product)} · 시장에서 검증된 상품
+                <ShieldCheck size={12} style={{ color: 'var(--gold)' }} /> {badge.label} · {badge.msg}
               </div>
             </div>
           </div>

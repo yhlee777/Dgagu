@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Table2, Armchair, BedDouble, DoorClosed, Archive, BookOpen, UtensilsCrossed,
   Lamp, Footprints, Wind, Shirt, Star, ShoppingBag, Calendar, X,
@@ -1462,17 +1462,16 @@ function defaultProductForCategory(products, catId, toneKey = null) {
 }
 
 function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation }) {
-  const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'address' | 'shop'
+  const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
   const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: null, desk: null, wardrobe: null });
   const [moveInDate, setMoveInDate] = useState('');
-  const [address, setAddress] = useState('');
-  const [addressDetail, setAddressDetail] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
   const [detailId, setDetailId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
+  const reservationDoneRef = useRef(false); // 예약이 성공했는지 — 팝업 닫을 때 장바구니를 비울지 판단
 
   useEffect(() => { window.scrollTo(0, 0); }, [step]);
 
@@ -1481,14 +1480,8 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const wk = weekKey(moveInDate);
   const regionCount = regionCountForWeek(reservations, wk);
   const regionDiscount = regionDiscountForCount(regionThresholds, regionCount);
-  const fullAddress = address ? `${address}${addressDetail.trim() ? ' ' + addressDetail.trim() : ''}` : '';
+  const fullAddress = ''; // 주소는 예약 팝업에서 직접 받아요
 
-  function handleSearchAddress() {
-    openAddressSearch((data) => {
-      setAddress(data.roadAddress || data.jibunAddress || data.address);
-      setAddressDetail('');
-    });
-  }
   function handleRoomNext() {
     // 패키지에 이미 들어가는 카테고리는 하단 목록에서 제외 — 나머지만 기본 체크
     const pkgCats = packageCategoriesFromRoomState(roomHas);
@@ -1541,11 +1534,16 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
     }
   }
   async function handleSubmitReservation(payload) {
-    return onAddReservation({ ...payload, tone: selectedTone });
+    const id = await onAddReservation({ ...payload, tone: selectedTone });
+    if (id) reservationDoneRef.current = true; // 예약 성공 — 팝업 닫을 때 장바구니를 비워요
+    return id;
   }
   function handleModalClose() {
     setModalOpen(false);
-    setCart({});
+    if (reservationDoneRef.current) {
+      setCart({});
+      reservationDoneRef.current = false;
+    }
   }
 
   const detailProduct = detailId ? products.find((p) => p.id === detailId) : null;
@@ -1575,10 +1573,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         {[
           { id: 'tone', label: '톤' },
           { id: 'room', label: '방 상태' },
-          { id: 'date', label: '배송일' },
           { id: 'shop', label: '가구선택' },
         ].map((s, i) => {
-          const order = { tone: 0, room: 1, date: 1, address: 2, shop: 3 };
+          const order = { tone: 0, room: 1, date: 2, address: 2, shop: 2 };
           const active = order[step] === i;
           const done = order[step] > i;
           return (
@@ -1596,7 +1593,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
                 </span>
                 <span className="text-[11px] font-bold" style={{ color: 'var(--ink)', opacity: active ? 1 : 0.4 }}>{s.label}</span>
               </div>
-              {i < 3 && <span style={{ color: 'var(--ink)', opacity: 0.2 }}>—</span>}
+              {i < 2 && <span style={{ color: 'var(--ink)', opacity: 0.2 }}>—</span>}
             </div>
           );
         })}
@@ -1723,69 +1720,12 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         </div>
       )}
 
-      {step === 'address' && (
-        <div className="px-4 pt-3 space-y-3">
-          <div className="border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-            <label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: 'var(--ink)' }}>
-              <MapPin size={13} /> 배송 받을 주소
-            </label>
-            {address ? (
-              <div className="border px-3 py-2 mb-2 flex items-center justify-between gap-2" style={{ borderColor: 'var(--line)' }}>
-                <span className="text-sm" style={{ color: 'var(--ink)' }}>{address}</span>
-                <button onClick={handleSearchAddress} className="flex-shrink-0 text-[11px] font-bold underline" style={{ color: 'var(--ink)', opacity: 0.6 }}>
-                  변경
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleSearchAddress}
-                className="w-full flex items-center justify-center gap-1.5 border-2 py-3 font-bold text-sm"
-                style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
-              >
-                <Search size={15} /> 주소 검색
-              </button>
-            )}
-            {address && (
-              <input
-                value={addressDetail}
-                onChange={(e) => setAddressDetail(e.target.value)}
-                placeholder="동/호수 등 상세주소 (예: 101동 502호)"
-                className="w-full border px-3 py-2 text-sm"
-                style={{ borderColor: 'var(--line)' }}
-              />
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStep('date')}
-              className="flex-shrink-0 px-4 py-3 font-bold text-sm border-2"
-              style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}
-            >
-              이전
-            </button>
-            <button
-              onClick={() => setStep('shop')}
-              disabled={!address}
-              className="flex-1 py-3 font-bold text-sm disabled:opacity-30"
-              style={{ background: 'var(--ink)', color: '#fff' }}
-            >
-              다음 — 가구 선택
-            </button>
-          </div>
-        </div>
-      )}
-
       {step === 'shop' && (
         <>
       <div className="px-4 pt-3 flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <button onClick={() => { setPendingReserve(false); setStep('date'); }} className="flex items-center gap-1 border px-2 py-1" style={{ borderColor: moveInDate ? 'var(--line)' : 'var(--gold)', opacity: moveInDate ? 0.7 : 1 }}>
           <Calendar size={12} /> {moveInDate ? `${moveInDate} 변경` : '배송 도착 희망일 선택'}
         </button>
-        {fullAddress && (
-          <button onClick={() => setStep('address')} className="flex items-center gap-1 border px-2 py-1 truncate max-w-[55%]" style={{ borderColor: 'var(--line)', opacity: 0.7 }}>
-            <MapPin size={12} className="flex-shrink-0" /> <span className="truncate">{fullAddress}</span>
-          </button>
-        )}
       </div>
 
       <div className="px-4 mt-3 space-y-3">

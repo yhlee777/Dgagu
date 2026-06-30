@@ -958,6 +958,12 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
         </div>
       )}
 
+      <div className="px-4 pt-2.5">
+        <p className="text-[11px] flex items-center gap-1 font-bold" style={{ color: 'var(--ink)' }}>
+          <Check size={12} style={{ color: 'var(--gold)' }} /> 사진 색상이 실제 제품 색상이에요. 보이는 그대로 도착해요.
+        </p>
+      </div>
+
       {/* title */}
       <div className="px-4 pt-3">
         <h1 className="idn-display text-xl font-bold leading-snug" style={{ color: 'var(--ink)' }}>{product.name}</h1>

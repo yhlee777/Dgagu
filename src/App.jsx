@@ -1282,6 +1282,8 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
   const [addressDetail, setAddressDetail] = useState('');
+  const [hasElevator, setHasElevator] = useState(null); // 엘리베이터 유무 — 추가운임 안내용
+  const [floor, setFloor] = useState('');
   const [referralSource, setReferralSource] = useState('');
   const [done, setDone] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -1317,12 +1319,13 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : ''), moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), referralDiscount, serviceFeeTotal, items: cartEntries, subtotal, total: finalTotal, savings: totalSavings, ts: Date.now() })
+    const elevInfo = hasElevator === null ? '' : ` [엘베${hasElevator ? '있음' : '없음'}${floor ? `·${floor}층` : ''}]`;
+    onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : '') + elevInfo, moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), referralDiscount, serviceFeeTotal, items: cartEntries, subtotal, total: finalTotal, savings: totalSavings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
   }
   function handleClose() {
-    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setReferralSource(''); setDone(false); setOrderId(null); setShared(false); setCopiedAcct(false); onClose();
+    setName(''); setPhone(''); setAddress(initialAddress); setAddressDetail(''); setHasElevator(null); setFloor(''); setReferralSource(''); setDone(false); setOrderId(null); setShared(false); setCopiedAcct(false); onClose();
   }
 
   return (
@@ -1467,6 +1470,46 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                       className="w-full border px-3 py-2 text-sm"
                       style={{ borderColor: 'var(--line)' }}
                     />
+                  )}
+                  {address && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>엘리베이터</span>
+                        <div className="flex gap-1.5">
+                          {[{ v: true, l: '있어요' }, { v: false, l: '없어요' }].map((o) => (
+                            <button
+                              key={String(o.v)}
+                              type="button"
+                              onClick={() => setHasElevator(o.v)}
+                              className="px-3 py-1.5 text-xs font-bold border"
+                              style={{
+                                borderColor: 'var(--ink)',
+                                background: hasElevator === o.v ? 'var(--ink)' : 'transparent',
+                                color: hasElevator === o.v ? '#fff' : 'var(--ink)',
+                              }}
+                            >
+                              {o.l}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <input
+                            value={floor}
+                            onChange={(e) => setFloor(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="층"
+                            inputMode="numeric"
+                            className="w-14 border px-2 py-1.5 text-sm text-center"
+                            style={{ borderColor: 'var(--line)' }}
+                          />
+                          <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.6 }}>층</span>
+                        </div>
+                      </div>
+                      {hasElevator === false && Number(floor) >= 3 && (
+                        <p className="text-[11px] mt-1.5 leading-relaxed px-2.5 py-2" style={{ background: 'var(--bg)', color: 'var(--stamp)' }}>
+                          엘리베이터 없는 3층 이상은 사다리차·계단 운반 추가운임이 발생할 수 있어요. 추가운임이 있는 경우 주문 후 카카오톡으로 미리 안내드릴게요.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

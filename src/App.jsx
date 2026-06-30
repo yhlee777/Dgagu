@@ -1283,7 +1283,7 @@ function KakaoInquiryButton({ label = '카카오톡으로 문의하기', full = 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, bankAccount, onSubmit, onRemoveItem }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, bankAccount, onSubmit, onRemoveItem, onChangeOption }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1367,9 +1367,30 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                             {catLabel(it.product.category)} · {it.product.name}
                             {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
                           </span>
-                          {it.option && (
-                            <span className="block text-[10px] truncate" style={{ opacity: 0.75 }}>
-                              {it.option.name}: {it.option.label}
+                          {it.product.option?.choices?.length > 0 && (
+                            <span className="block mt-1">
+                              <span className="block text-[10px]" style={{ opacity: 0.6 }}>{it.product.option.name}</span>
+                              <span className="flex flex-wrap gap-1 mt-0.5">
+                                {it.product.option.choices.map((c, ci) => {
+                                  const sel = it.option?.label === c.label;
+                                  const dv = Number(c.delta) || 0;
+                                  return (
+                                    <button
+                                      key={ci}
+                                      type="button"
+                                      onClick={() => onChangeOption && onChangeOption(it.product.id, ci)}
+                                      className="text-[10px] px-1.5 py-0.5 border"
+                                      style={{
+                                        borderColor: sel ? 'var(--ink)' : 'var(--line)',
+                                        background: sel ? 'var(--ink)' : 'transparent',
+                                        color: sel ? '#fff' : 'var(--ink)',
+                                      }}
+                                    >
+                                      {c.label}{dv ? ` +${dv / 10000}만` : ''}
+                                    </button>
+                                  );
+                                })}
+                              </span>
                             </span>
                           )}
                         </span>
@@ -2057,6 +2078,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         bankAccount={bankAccount}
         onSubmit={handleSubmitReservation}
         onRemoveItem={(pid) => updateCart(pid, 0)}
+        onChangeOption={(pid, idx) => updateCart(pid, cart[pid] || 1, idx)}
       />
         </>
       )}

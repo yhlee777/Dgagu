@@ -3384,16 +3384,37 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount, products = []
           주문 내역
         </div>
         <div className="px-3 py-2">
-          {(r.items || []).map((it) => (
-            <div key={it.product?.id} className="flex justify-between text-xs py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
-              <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
-                {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
-                {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
-                {it.option && <span style={{ opacity: 0.85 }}> · {it.option.label}</span>}
-              </span>
-              <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
-            </div>
-          ))}
+          {(r.items || []).map((it) => {
+            const live = products.find((p) => String(p.id) === String(it.product?.id));
+            const thumb = live ? imagesForTone(live, it.tone)[0] : null;
+            const pid = it.product?.id;
+            return (
+              <button
+                key={pid}
+                type="button"
+                onClick={() => { if (pid) window.location.href = `/?p=${pid}`; }}
+                className="w-full flex items-center justify-between gap-2 text-xs py-2 border-b last:border-b-0 text-left"
+                style={{ borderColor: 'var(--line)' }}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="w-10 h-10 border flex-shrink-0 overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
+                    {thumb
+                      ? <img src={thumb} alt={it.product?.name || ''} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      : <Package size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate" style={{ color: 'var(--ink)', opacity: 0.8 }}>
+                      {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
+                      {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                    </span>
+                    {it.option && <span className="block text-[10px]" style={{ color: 'var(--ink)', opacity: 0.55 }}>{it.option.name}: {it.option.label}</span>}
+                    <span className="block text-[10px] idn-mono" style={{ color: 'var(--gold)' }}>다시 보기 ›</span>
+                  </span>
+                </span>
+                <span className="idn-mono font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
+              </button>
+            );
+          })}
           <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
             <span>합계</span>
             <span className="idn-display">{won(r.total)}</span>

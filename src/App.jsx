@@ -960,7 +960,7 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 
       <div className="px-4 pt-2.5">
         <p className="text-[11px] flex items-center gap-1 font-bold" style={{ color: 'var(--ink)' }}>
-          <Check size={12} style={{ color: 'var(--gold)' }} /> 사진 색상이 실제 제품 색상이에요. 보이는 그대로 도착해요.
+          <Check size={12} style={{ color: 'var(--gold)' }} /> 실제 제품 색상은 위 사진과 동일해요. 보이는 그대로 도착해요.
         </p>
       </div>
 
@@ -1255,7 +1255,7 @@ function BankTransferBox({ bankAccount, amount, name }) {
               </p>
             )}
             <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              입금이 확인되면 바로 출고를 시작해서 도매처에서 댁으로 직접 배송해드려요.
+              입금이 확인되면 바로 출고해서 댁으로 배송해드려요. 가구마다 순차적으로 배송되고, 조립·설치까지 해드려요.
             </p>
           </>
         ) : (
@@ -1570,7 +1570,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 {moveInDate ? `${moveInDate} 입주에 맞춰 예약하기` : '예약 신청하기'}
               </button>
               <p className="text-[11px] text-center mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-                예약 접수 후 결제 안내를 보여드려요.<br />입금이 확인되면 바로 출고해서 도매처에서 직접 배송돼요.
+                예약 접수 후 결제 안내를 보여드려요.<br />입금이 확인되면 바로 출고해서 댁으로 배송돼요.
               </p>
             </div>
           </>
@@ -3395,7 +3395,7 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
         <div className="border-2 mb-4 px-3 py-2.5" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
           <div className="text-xs font-bold mb-0.5" style={{ color: 'var(--ink)' }}>결제 안내 · 전액 선결제</div>
           <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>
-            입금이 확인됐어요. 도매처에서 댁으로 직접 배송되며, 도착 일정은 카카오톡으로 안내드려요.
+            입금이 확인됐어요. 가구마다 순차적으로 댁으로 배송되며, 각 가구는 발송 2~3일 전에 카카오톡으로 안내드려요.
           </p>
         </div>
       )}

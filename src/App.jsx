@@ -1661,15 +1661,15 @@ function defaultProductForCategory(products, catId, toneKey = null) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation }) {
-  const [step, setStep] = useState('tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation, initialProductId = null }) {
+  const [step, setStep] = useState(initialProductId ? 'shop' : 'tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
   const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: true, desk: true, wardrobe: true });
   const [moveInDate, setMoveInDate] = useState('');
   const [checked, setChecked] = useState({});
   const [cart, setCart] = useState({}); // productId -> qty
   const [cartOptions, setCartOptions] = useState({}); // productId -> 선택한 옵션 인덱스 (예: 다리 높이)
-  const [detailId, setDetailId] = useState(null);
+  const [detailId, setDetailId] = useState(initialProductId || null);
   const detailScrollRef = useRef(0); // 상세 들어가기 전 쇼핑 화면 스크롤 위치 — 뒤로가면 그대로 복원
   const openDetail = (pid) => { detailScrollRef.current = window.scrollY; setDetailId(pid); };
   const backFromDetail = () => { setDetailId(null); requestAnimationFrame(() => window.scrollTo(0, detailScrollRef.current || 0)); };
@@ -3286,7 +3286,7 @@ function AdminOrders({ reservations, products }) {
 const ADMIN_PIN = '0610';
 
 // 손님용 주문조회 화면 — 카카오톡으로 받은 링크(/order/:id)로 들어와서 상태를 확인해요
-function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
+function OrderLookup({ orderId, reservations, loaded, bankAccount, products = [] }) {
   if (!loaded) {
     return (
       <div className="px-4 pt-20 text-center text-sm" style={{ color: 'var(--ink)', opacity: 0.4 }}>
@@ -3359,16 +3359,37 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount }) {
           주문 내역
         </div>
         <div className="px-3 py-2">
-          {(r.items || []).map((it) => (
-            <div key={it.product?.id} className="flex justify-between text-xs py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
-              <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
-                {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
-                {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
-                {it.option && <span style={{ opacity: 0.85 }}> · {it.option.label}</span>}
-              </span>
-              <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
-            </div>
-          ))}
+          {(r.items || []).map((it) => {
+            const live = products.find((p) => String(p.id) === String(it.product?.id));
+            const thumb = live ? imagesForTone(live, it.tone)[0] : null;
+            const pid = it.product?.id;
+            return (
+              <button
+                key={pid}
+                type="button"
+                onClick={() => { if (pid) window.location.href = `/?p=${pid}`; }}
+                className="w-full flex items-center justify-between gap-2 text-xs py-2 border-b last:border-b-0 text-left"
+                style={{ borderColor: 'var(--line)' }}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="w-10 h-10 border flex-shrink-0 overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
+                    {thumb
+                      ? <img src={thumb} alt={it.product?.name || ''} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      : <Package size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate" style={{ color: 'var(--ink)', opacity: 0.8 }}>
+                      {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
+                      {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                    </span>
+                    {it.option && <span className="block text-[10px]" style={{ color: 'var(--ink)', opacity: 0.55 }}>{it.option.name}: {it.option.label}</span>}
+                    <span className="block text-[10px] idn-mono" style={{ color: 'var(--gold)' }}>다시 보기 ›</span>
+                  </span>
+                </span>
+                <span className="idn-mono font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
+              </button>
+            );
+          })}
           <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
             <span>합계</span>
             <span className="idn-display">{won(r.total)}</span>
@@ -3491,6 +3512,7 @@ export default function App() {
     return 'shop';
   });
   const [orderId] = useState(() => parseOrderIdFromPath());
+  const [initialProductId] = useState(() => new URLSearchParams(window.location.search).get('p'));
   const [products, setProducts] = useState(SEED_PRODUCTS);
   const [reservations, setReservations] = useState([]);
   const [earlyBirdDays, setEarlyBirdDays] = useState(EARLYBIRD_DAYS_DEFAULT);
@@ -3656,9 +3678,9 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} initialProductId={initialProductId} />
           : view === 'order'
-            ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} bankAccount={bankAccount} />
+            ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} bankAccount={bankAccount} products={products} />
             : adminUnlocked
               ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} onUpdateStatus={updateReservationStatus} />
               : <AdminGate onUnlock={() => setAdminUnlocked(true)} />

@@ -217,7 +217,7 @@ function buildReservationMessage(r, bankAccount = {}) {
     lines.push('※ 입금 계좌는 곧 안내드릴게요.');
   }
   lines.push('');
-  lines.push('입금이 확인되면 바로 출고를 시작해서 도매처에서 댁으로 직접 배송돼요. 도착 일정은 확인되는 대로 카카오톡으로 안내드릴게요.');
+  lines.push('입금이 확인되면 가구마다 순차적으로 출고되고, 조립·설치까지 해드려요. 각 가구는 발송 2~3일 전에 카카오톡으로 미리 안내드릴게요.');
   if (r.ts != null) {
     lines.push('');
     lines.push(`주문 상태 확인: ${SITE_URL}/order/${r.ts}`);
@@ -786,7 +786,7 @@ function MoveInCalendar({ value, onChange, earlyBirdDays, earlyBirdDiscount }) {
 
         </div>
         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-          가구마다 순차적으로 배송돼요. 희망일 기준 영업일 10일 이상 남으면 그 날까지 도착을 보장해요.
+          조립·설치까지 포함이에요(배송비에 설치 포함, 추가 비용 없음). 가구마다 순차적으로 배송되며, 각 가구는 발송 2~3일 전에 카카오톡으로 미리 알려드려요.
         </p>
       </div>
     </div>
@@ -1472,40 +1472,40 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                     />
                   )}
                   {address && (
-                    <div className="mt-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>엘리베이터</span>
-                        <div className="flex gap-1.5">
-                          {[{ v: true, l: '있어요' }, { v: false, l: '없어요' }].map((o) => (
-                            <button
-                              key={String(o.v)}
-                              type="button"
-                              onClick={() => setHasElevator(o.v)}
-                              className="px-3 py-1.5 text-xs font-bold border"
-                              style={{
-                                borderColor: 'var(--ink)',
-                                background: hasElevator === o.v ? 'var(--ink)' : 'transparent',
-                                color: hasElevator === o.v ? '#fff' : 'var(--ink)',
-                              }}
-                            >
-                              {o.l}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-1 ml-auto">
+                    <div className="mt-3">
+                      <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>
+                        엘리베이터 · 층수 <span style={{ opacity: 0.5, fontWeight: 400 }}>(배송 추가운임 확인용)</span>
+                      </label>
+                      <div className="flex gap-1.5">
+                        {[{ v: true, l: '있어요' }, { v: false, l: '없어요' }].map((o) => (
+                          <button
+                            key={String(o.v)}
+                            type="button"
+                            onClick={() => setHasElevator(o.v)}
+                            className="flex-1 py-2 text-sm font-bold border"
+                            style={{
+                              borderColor: 'var(--ink)',
+                              background: hasElevator === o.v ? 'var(--ink)' : 'transparent',
+                              color: hasElevator === o.v ? '#fff' : 'var(--ink)',
+                            }}
+                          >
+                            {o.l}
+                          </button>
+                        ))}
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <input
                             value={floor}
                             onChange={(e) => setFloor(e.target.value.replace(/[^0-9]/g, ''))}
                             placeholder="층"
                             inputMode="numeric"
-                            className="w-14 border px-2 py-1.5 text-sm text-center"
+                            className="w-14 border px-2 py-2 text-sm text-center"
                             style={{ borderColor: 'var(--line)' }}
                           />
-                          <span className="text-xs" style={{ color: 'var(--ink)', opacity: 0.6 }}>층</span>
+                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink)', opacity: 0.6 }}>층</span>
                         </div>
                       </div>
                       {hasElevator === false && Number(floor) >= 3 && (
-                        <p className="text-[11px] mt-1.5 leading-relaxed px-2.5 py-2" style={{ background: 'var(--bg)', color: 'var(--stamp)' }}>
+                        <p className="text-[11px] mt-2 leading-relaxed px-2.5 py-2" style={{ background: 'var(--bg)', color: 'var(--stamp)' }}>
                           엘리베이터 없는 3층 이상은 사다리차·계단 운반 추가운임이 발생할 수 있어요. 추가운임이 있는 경우 주문 후 카카오톡으로 미리 안내드릴게요.
                         </p>
                       )}
@@ -1570,7 +1570,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
               </button>
             )}
             <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-              복사한 계좌로 송금하시면 돼요. 입금이 확인되면 도매처에서 댁으로 직접 배송되고,<br />주문 접수 안내와 진행상황은 카카오톡으로 보내드렸어요.
+              복사한 계좌로 송금하시면 돼요. 입금이 확인되면 가구마다 순차적으로 출고되고, 조립·설치까지 해드려요. 각 가구는 발송 2~3일 전에 카카오톡으로 미리 알려드려요.
             </p>
             <div className="mt-4">
               <KakaoInquiryButton label="배송·문의는 카카오톡으로" />
@@ -1774,6 +1774,13 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
             <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: 'var(--ink)', opacity: 0.7 }}>
               자취방 가구 일일이 비교하느라 지치셨죠. 원하는 분위기만 정하면, 톤에 맞는 프리미엄 가구를 가성비로 골라 한 세트로 맞춰드려요.
             </p>
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              {['조립·설치 포함', '입주일 맞춤 배송', '하자 100% 보장'].map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 text-[10.5px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--ink)' }}>
+                  <Check size={11} style={{ color: 'var(--gold)' }} /> {t}
+                </span>
+              ))}
+            </div>
           </div>
           {TONES.map((t) => (
             <button
@@ -1937,11 +1944,11 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         )}
         <div className="border-2 px-3 py-2.5" style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>도매처 직배송 — 입주일 맞춤</div>
+            <div className="text-xs font-bold" style={{ color: 'var(--ink)' }}>조립·설치까지 포함 — 입주일 맞춤</div>
             <div className="text-[10px] font-bold px-1.5 py-0.5" style={{ background: 'var(--stamp)', color: '#fff' }}>하자 100% 보장</div>
           </div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
-            주문하신 가구가 입주일에 맞춰 댁으로 배송돼요. 불량이면 100% 교환 또는 환불해드려요.
+            전 제품 조립·설치까지 다 해드려요(배송비에 설치 포함). 손 하나 까딱 안 해도 입주일에 맞춰 방이 채워져요. 불량이면 100% 교환·환불.
           </div>
         </div>
         <PackageCard

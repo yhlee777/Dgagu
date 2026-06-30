@@ -11,6 +11,22 @@ import { supabase } from './lib/supabaseClient';
 import { resizeImage, readFileAsDataURL } from './lib/resizeImage';
 import { SEED_PRODUCTS, makeProduct } from './data/seedProducts';
 
+// 이미지를 Supabase Storage('product-images' 버킷)에 올리고 공개 URL을 돌려줘요.
+// input: 파일(File/Blob) 또는 base64 data URL 둘 다 받아요.
+// DB엔 이 URL만 저장되므로 상품 목록 쿼리가 가벼워지고, 이미지는 브라우저가 따로(병렬·캐시) 받아와요.
+const STORAGE_BUCKET = 'product-images';
+async function uploadImageToStorage(input, folder = 'products') {
+  const blob = typeof input === 'string' ? await (await fetch(input)).blob() : input;
+  const type = blob.type || 'image/jpeg';
+  const ext = (type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: type, upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+
 /* ---------------------------------------------------------------------- */
 /* constants & helpers                                                     */
 /* ---------------------------------------------------------------------- */
@@ -2150,9 +2166,12 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setImage(i, await resizeImage(file));
+      const resized = await resizeImage(file);
+      const url = await uploadImageToStorage(resized, 'products');
+      setImage(i, url);
     } catch (err) {
-      console.error('image resize failed', err);
+      console.error('image upload failed', err);
+      alert('사진 업로드에 실패했어요. 잠시 후 다시 시도하거나, 네트워크를 확인해주세요.');
     }
   }
   // 톤별 색상 사진 — toneKey('grey'|'scandi') 슬롯 i에 이미지 저장
@@ -2167,9 +2186,12 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setToneImage(toneKey, i, await resizeImage(file));
+      const resized = await resizeImage(file);
+      const url = await uploadImageToStorage(resized, 'products');
+      setToneImage(toneKey, i, url);
     } catch (err) {
-      console.error('tone image resize failed', err);
+      console.error('tone image upload failed', err);
+      alert('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
   }
   // 설명 이미지(치수도면/특징컷 등) — 여러 장, 한 번에 여러 파일 선택 가능
@@ -2177,11 +2199,12 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     try {
-      // 치수도면·설명컷은 글자가 작아서 재압축하면 흐려져요 — 원본 그대로 저장
-      const loaded = await Promise.all(files.map((f) => readFileAsDataURL(f)));
-      setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...loaded] }));
+      // 치수도면·설명컷은 글자가 작아서 재압축하면 흐려져요 — 원본 파일 그대로 Storage에 올려요
+      const urls = await Promise.all(files.map((f) => uploadImageToStorage(f, 'details')));
+      setForm((f) => ({ ...f, detailImages: [...f.detailImages, ...urls] }));
     } catch (err) {
-      console.error('detail image load failed', err);
+      console.error('detail image upload failed', err);
+      alert('상세 이미지 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
     e.target.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
   }
@@ -2777,9 +2800,11 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
     if (!file) return;
     try {
       const data = await resizeImage(file);
-      setPackageImages((p) => ({ ...p, [key]: data }));
+      const url = await uploadImageToStorage(data, 'packages');
+      setPackageImages((p) => ({ ...p, [key]: url }));
     } catch (err) {
-      console.error('package image resize failed', err);
+      console.error('package image upload failed', err);
+      alert('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
   }
   const PACKAGE_TYPES = [
@@ -3359,37 +3384,16 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount, products = []
           주문 내역
         </div>
         <div className="px-3 py-2">
-          {(r.items || []).map((it) => {
-            const live = products.find((p) => String(p.id) === String(it.product?.id));
-            const thumb = live ? imagesForTone(live, it.tone)[0] : null;
-            const pid = it.product?.id;
-            return (
-              <button
-                key={pid}
-                type="button"
-                onClick={() => { if (pid) window.location.href = `/?p=${pid}`; }}
-                className="w-full flex items-center justify-between gap-2 text-xs py-2 border-b last:border-b-0 text-left"
-                style={{ borderColor: 'var(--line)' }}
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="w-10 h-10 border flex-shrink-0 overflow-hidden flex items-center justify-center" style={{ borderColor: 'var(--line)' }}>
-                    {thumb
-                      ? <img src={thumb} alt={it.product?.name || ''} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                      : <Package size={14} style={{ color: 'var(--ink)', opacity: 0.3 }} />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate" style={{ color: 'var(--ink)', opacity: 0.8 }}>
-                      {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
-                      {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
-                    </span>
-                    {it.option && <span className="block text-[10px]" style={{ color: 'var(--ink)', opacity: 0.55 }}>{it.option.name}: {it.option.label}</span>}
-                    <span className="block text-[10px] idn-mono" style={{ color: 'var(--gold)' }}>다시 보기 ›</span>
-                  </span>
-                </span>
-                <span className="idn-mono font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
-              </button>
-            );
-          })}
+          {(r.items || []).map((it) => (
+            <div key={it.product?.id} className="flex justify-between text-xs py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
+              <span style={{ color: 'var(--ink)', opacity: 0.75 }}>
+                {it.product ? catLabel(it.product.category) : ''} · {it.product?.name}
+                {it.qty > 1 && <span className="idn-mono"> ×{it.qty}</span>}
+                {it.option && <span style={{ opacity: 0.85 }}> · {it.option.label}</span>}
+              </span>
+              <span className="idn-mono font-bold" style={{ color: 'var(--ink)' }}>{won(it.lineTotal ?? (it.unitPrice * it.qty))}</span>
+            </div>
+          ))}
           <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t-2" style={{ borderColor: 'var(--ink)', color: 'var(--ink)' }}>
             <span>합계</span>
             <span className="idn-display">{won(r.total)}</span>

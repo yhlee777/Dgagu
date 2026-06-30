@@ -1319,7 +1319,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     setDone(true); // 화면은 바로 완료 단계로 넘기고, 저장은 백그라운드에서 진행
-    const elevInfo = hasElevator === null ? '' : ` [엘베${hasElevator ? '있음' : '없음'}${floor ? `·${floor}층` : ''}]`;
+    const elevInfo = hasElevator === null ? '' : ` [엘베${hasElevator ? '있음' : '없음'}${!hasElevator && floor ? `·${floor}층` : ''}]`;
     onSubmit({ name, phone, address: address + (addressDetail.trim() ? ' ' + addressDetail.trim() : '') + elevInfo, moveInDate, earlyBird, roomHas, referralAgent, referralSource: referralSource.trim(), referralDiscount, serviceFeeTotal, items: cartEntries, subtotal, total: finalTotal, savings: totalSavings, ts: Date.now() })
       .then((id) => { setOrderId(id); setSubmitting(false); })
       .catch((err) => { console.error('reservation submit failed', err); setSubmitting(false); });
@@ -1474,7 +1474,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                   {address && (
                     <div className="mt-3">
                       <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>
-                        엘리베이터 · 층수 <span style={{ opacity: 0.5, fontWeight: 400 }}>(배송 추가운임 확인용)</span>
+                        엘리베이터 <span style={{ opacity: 0.5, fontWeight: 400 }}>(배송 추가운임 확인용)</span>
                       </label>
                       <div className="flex gap-1.5">
                         {[{ v: true, l: '있어요' }, { v: false, l: '없어요' }].map((o) => (
@@ -1492,17 +1492,19 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                             {o.l}
                           </button>
                         ))}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <input
-                            value={floor}
-                            onChange={(e) => setFloor(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="층"
-                            inputMode="numeric"
-                            className="w-14 border px-2 py-2 text-sm text-center"
-                            style={{ borderColor: 'var(--line)' }}
-                          />
-                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink)', opacity: 0.6 }}>층</span>
-                        </div>
+                        {hasElevator === false && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <input
+                              value={floor}
+                              onChange={(e) => setFloor(e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="층"
+                              inputMode="numeric"
+                              className="w-14 border px-2 py-2 text-sm text-center"
+                              style={{ borderColor: 'var(--line)' }}
+                            />
+                            <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink)', opacity: 0.6 }}>층</span>
+                          </div>
+                        )}
                       </div>
                       {hasElevator === false && Number(floor) >= 3 && (
                         <p className="text-[11px] mt-2 leading-relaxed px-2.5 py-2" style={{ background: 'var(--bg)', color: 'var(--stamp)' }}>
@@ -1514,7 +1516,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
                 </div>
               </div>
 
-              <div className="mb-3">
+              <div className="mb-3 mt-5">
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--ink)' }}>
                   추천 부동산명 적고 <span style={{ color: 'var(--stamp)' }}>5,000원 할인</span> <span style={{ opacity: 0.5, fontWeight: 400 }}>(선택)</span>
                 </label>

@@ -1677,7 +1677,7 @@ function defaultProductForCategory(products, catId, toneKey = null) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation, initialProductId = null }) {
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation, initialProductId = null, onNeedProductMedia }) {
   const [step, setStep] = useState(initialProductId ? 'shop' : 'tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
   const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: true, desk: true, wardrobe: true });
@@ -1689,6 +1689,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const detailScrollRef = useRef(0); // 상세 들어가기 전 쇼핑 화면 스크롤 위치 — 뒤로가면 그대로 복원
   const openDetail = (pid) => { detailScrollRef.current = window.scrollY; setDetailId(pid); };
   const backFromDetail = () => { setDetailId(null); requestAnimationFrame(() => window.scrollTo(0, detailScrollRef.current || 0)); };
+  useEffect(() => { if (detailId && onNeedProductMedia) onNeedProductMedia(detailId); }, [detailId]);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
   const reservationDoneRef = useRef(false); // 예약이 성공했는지 — 팝업 닫을 때 장바구니를 비울지 판단
@@ -3583,14 +3584,33 @@ export default function App() {
         return;
       }
 
+      // 첫 화면(상품 목록)엔 무거운 detailImages/toneImages가 필요 없어요.
+      // 가벼운 컬럼만 불러와 첫 로딩을 확 줄이고, 상세 이미지는 상품 열 때만 따로 가져와요.
+      // (컬럼명이 안 맞으면 전체(*)로 안전하게 폴백)
+      const LIGHT_COLS = 'id,name,category,basePrice,cost,rating,reviews,desc,detail,reviewNote,highlights,dims,material,images,shippingFee,purchaseUrl,tone';
       const [prodRes, resRes, settingsRes] = await Promise.all([
-        supabase.from('products').select('*').order('id'),
+        supabase.from('products').select(LIGHT_COLS).order('id'),
         supabase.from('reservations').select('*').order('created_at'),
         supabase.from('settings').select('earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, packageImages').eq('id', 1).single(),
       ]);
 
-      if (prodRes.error) console.error('product load failed', prodRes.error);
-      else if (prodRes.data?.length && !cancelled) setProducts(prodRes.data);
+      let prodData = prodRes.data;
+      if (prodRes.error) {
+        console.warn('light product query failed — falling back to select *', prodRes.error);
+        const full = await supabase.from('products').select('*').order('id');
+        if (!full.error) prodData = full.data;
+        else console.error('product load failed', full.error);
+      }
+      if (prodData?.length && !cancelled) setProducts(prodData);
+
+      // option은 별도 컬럼(있을 수도/없을 수도) — 가볍게 따로 병합, 실패해도 무시
+      try {
+        const optRes = await supabase.from('products').select('id, option');
+        if (!optRes.error && optRes.data && !cancelled) {
+          const optMap = Object.fromEntries(optRes.data.map((o) => [o.id, o.option]));
+          setProducts((ps) => ps.map((p) => (optMap[p.id] != null ? { ...p, option: optMap[p.id] } : p)));
+        }
+      } catch { /* option 컬럼 없음 — 무시 */ }
 
       if (resRes.error) console.error('reservation load failed', resRes.error);
       else if (resRes.data && !cancelled) setReservations(resRes.data);
@@ -3621,6 +3641,27 @@ export default function App() {
     supabase.from('settings').update({ bankAccount }).eq('id', 1)
       .then(({ error }) => error && console.error("입금계좌 저장 실패 — settings 테이블에 'bankAccount' jsonb 컬럼이 필요해요", error));
   }, [bankAccount, loaded]);
+
+  // 상품 상세를 열 때 그 상품의 무거운 이미지(detailImages·toneImages)만 따로 불러와 병합.
+  // 첫 로딩엔 이걸 빼서 가볍게, 필요할 때만 가져와요.
+  async function loadProductMedia(productId) {
+    const target = products.find((p) => String(p.id) === String(productId));
+    if (!target || target._mediaLoaded) return;
+    // detailImages — 반드시 있는 컬럼
+    try {
+      const d = await supabase.from('products').select('id, detailImages').eq('id', productId).single();
+      if (!d.error && d.data) {
+        setProducts((ps) => ps.map((p) => (p.id === d.data.id ? { ...p, detailImages: d.data.detailImages || [], _mediaLoaded: true } : p)));
+      }
+    } catch { /* 무시 */ }
+    // toneImages — 있을 수도/없을 수도 (별도 컬럼)
+    try {
+      const t = await supabase.from('products').select('id, toneImages').eq('id', productId).single();
+      if (!t.error && t.data?.toneImages) {
+        setProducts((ps) => ps.map((p) => (p.id === t.data.id ? { ...p, toneImages: t.data.toneImages } : p)));
+      }
+    } catch { /* toneImages 컬럼 없음 — 무시 */ }
+  }
 
   async function addReservation(r) {
     // 선택한 톤(색상)을 각 품목에 함께 저장 — 어떤 색으로 주문했는지 사장님이 알 수 있게.
@@ -3703,7 +3744,7 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} initialProductId={initialProductId} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} initialProductId={initialProductId} onNeedProductMedia={loadProductMedia} />
           : view === 'order'
             ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} bankAccount={bankAccount} products={products} />
             : adminUnlocked

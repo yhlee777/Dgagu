@@ -126,8 +126,14 @@ function productMatchesTone(product, toneKey) {
 function imagesForTone(product, toneKey) {
   const ti = product?.toneImages;
   if (ti) {
-    const key = toneKey === 'scandi' || toneKey === 'wood' ? 'scandi' : toneKey === 'grey' ? 'grey' : null;
-    if (key && Array.isArray(ti[key]) && ti[key].some(Boolean)) return ti[key];
+    // 톤별 우선순위. 웜우드는 전용 사진이 없으면 스칸디 사진으로 폴백해요.
+    const order = toneKey === 'grey' ? ['grey']
+      : toneKey === 'scandi' ? ['scandi']
+      : toneKey === 'wood' ? ['wood', 'scandi']
+      : [];
+    for (const key of order) {
+      if (Array.isArray(ti[key]) && ti[key].some(Boolean)) return ti[key];
+    }
   }
   return product?.images || [];
 }
@@ -2170,6 +2176,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
     toneImages: {
       grey: initial?.toneImages?.grey?.length ? [...initial.toneImages.grey, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
       scandi: initial?.toneImages?.scandi?.length ? [...initial.toneImages.scandi, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
+      wood: initial?.toneImages?.wood?.length ? [...initial.toneImages.wood, '', '', '', ''].slice(0, 4) : ['', '', '', ''],
     },
     optionName: initial?.option?.name || '',
     optionChoices: initial?.option?.choices?.length ? initial.option.choices.map((c) => ({ label: c.label || '', delta: c.delta ?? 0 })) : [],
@@ -2288,6 +2295,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
       toneImages: {
         grey: (form.toneImages?.grey || []).filter(Boolean),
         scandi: (form.toneImages?.scandi || []).filter(Boolean),
+        wood: (form.toneImages?.wood || []).filter(Boolean),
       },
       option: (form.optionName.trim() && form.optionChoices.some((c) => c.label.trim()))
         ? {
@@ -2352,11 +2360,12 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
         <div className="col-span-2">
           <label className={labelCls} style={{ color: 'var(--ink)' }}>톤별 색상 사진 (색상이 톤마다 다를 때만)</label>
           <p className="text-[11px] mb-2" style={{ color: 'var(--ink)', opacity: 0.55 }}>
-            한 상품이 색상별로 다를 때(예: 책상 화이트/오크) 여기에 색상 사진을 넣으면, 손님이 고른 톤에 맞는 색만 보여줘요. <b>모던그레이를 고른 손님 → 모던그레이용 사진</b>, <b>스칸디를 고른 손님 → 스칸디용 사진</b>. 비워두면 위의 기본 사진이 그대로 쓰여요. 이 기능을 쓰려면 위 '어울리는 톤'을 <b>어디나 어울림</b>으로 두세요(두 톤 모두에 노출돼요).
+            한 상품이 색상별로 다를 때(예: 책상 화이트/오크/월넛) 여기에 색상 사진을 넣으면, 손님이 고른 톤에 맞는 색만 보여줘요. <b>모던그레이 → 그레이용</b>, <b>스칸디 → 스칸디용</b>, <b>웜우드 → 웜우드용</b>(없으면 스칸디용). 비워두면 위의 기본 사진이 그대로 쓰여요. 이 기능을 쓰려면 위 '어울리는 톤'을 <b>어디나 어울림</b> 또는 <b>웜우드+스칸디 공용</b>으로 두세요(여러 톤에 노출돼요).
           </p>
           {[
             { key: 'grey', label: '모던그레이용 (예: 화이트)' },
-            { key: 'scandi', label: '스칸디용 (예: 오크)' },
+            { key: 'scandi', label: '스칸디용 (예: 밝은 오크)' },
+            { key: 'wood', label: '웜우드용 (예: 짙은 월넛) — 없으면 스칸디용 사진 사용' },
           ].map((toneOpt) => (
             <div key={toneOpt.key} className="border p-2 mb-2" style={{ borderColor: 'var(--line)' }}>
               <div className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink)' }}>{toneOpt.label}</div>
@@ -3311,7 +3320,7 @@ function AdminOrders({ reservations, products }) {
                       const Icon = CAT_BY_ID[it.product?.category]?.icon;
                       const liveProduct = products.find((p) => p.id === it.product?.id);
                       const url = liveProduct?.purchaseUrl || it.product?.purchaseUrl;
-                      const hasColorVariant = liveProduct?.toneImages && (liveProduct.toneImages.grey?.some(Boolean) || liveProduct.toneImages.scandi?.some(Boolean));
+                      const hasColorVariant = liveProduct?.toneImages && (liveProduct.toneImages.grey?.some(Boolean) || liveProduct.toneImages.scandi?.some(Boolean) || liveProduct.toneImages.wood?.some(Boolean));
                       return (
                         <div key={it.product?.id} className="flex items-center justify-between px-3 py-2 gap-2">
                           <span className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: 'var(--ink)' }}>

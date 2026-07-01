@@ -100,10 +100,12 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 // 시작 화면 — 손님이 방 분위기(톤)를 먼저 고르게 해서 "내 방을 디자인한다"는 경험을 줘요.
 // 톤은 분위기 큐레이션용이고, 실제 담기는 가구는 같은 라인업이에요(구성으로 분위기 표현).
 const TONES = [
-  { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', desc: '화이트·그레이에 우드 한 끗. 군더더기 없이 차분해서, 집중도 잘 되고 뭘 놔도 정돈돼 보이는 방.',
+  { key: 'grey', label: '모던 그레이', img: '/tones/modern-grey.jpg', color: '#D6D6DA', desc: '화이트·그레이에 우드 한 끗. 군더더기 없이 차분해서, 집중도 잘 되고 뭘 놔도 정돈돼 보이는 방.',
     tip: '차분한 그레이 톤이라 책상에 앉으면 집중이 잘 돼요. 화이트 벽이든 좁은 방이든 깔끔하게 맞아떨어져요.' },
-  { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', desc: '밝은 우드와 화이트가 채광을 머금는 톤. 별것 안 해도 따뜻하고 감성적인, 카페 같은 방.',
+  { key: 'scandi', label: '스칸디 미니멀', img: '/tones/scandi.jpg', color: '#E4CFB0', desc: '밝은 우드와 화이트가 채광을 머금는 톤. 별것 안 해도 따뜻하고 감성적인, 카페 같은 방.',
     tip: '밝은 우드가 빛을 부드럽게 퍼뜨려요. 작은 자취방도 넓고 포근해 보이고, 러그·조명 하나면 분위기가 확 살아요.' },
+  { key: 'wood', label: '웜 우드', img: '/tones/warm-wood.jpg', color: '#C29A6B', desc: '짙고 따뜻한 오크·월넛에 크림을 더한 톤. 카페처럼 포근하고, 오래 있어도 편안한 아늑한 방.',
+    tip: '따뜻한 우드가 방 전체를 감싸요. 조명만 켜도 카페 같은 무드가 나고, 집에 있는 시간이 좋아지는 공간이 돼요.' },
 ];
 function toneByKey(key) {
   return TONES.find((t) => t.key === key) || null;
@@ -114,8 +116,9 @@ function productMatchesTone(product, toneKey) {
   const t = product.tone || 'grey';
   if (t === 'all') return true;
   if (t === toneKey) return true;
-  // 오크 가구는 스칸디에서 노출
+  // 오크·스칸디 우드 가구는 서로의 톤에 함께 노출 (따뜻한 우드/밝은 우드 겹침)
   if (t === 'wood' && toneKey === 'scandi') return true;
+  if (t === 'scandi' && toneKey === 'wood') return true;
   return false;
 }
 // 톤별 색상 사진 — 한 상품이 색상별로 다를 때, 고른 톤에 맞는 색상 사진을 돌려줘요.
@@ -1855,10 +1858,10 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
                 background: 'var(--surface)',
               }}
             >
-              <div className="relative">
-                <img src={t.img} alt={t.label} loading="lazy" decoding="async" className="w-full h-40 object-cover" style={{ display: 'block' }} />
+              <div className="relative h-40" style={{ background: t.color || 'var(--line)' }}>
+                <img src={t.img} alt={t.label} loading="lazy" decoding="async" className="w-full h-full object-cover absolute inset-0" style={{ display: 'block' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 {selectedTone === t.key && (
-                  <div className="absolute top-2 right-2 idn-seal w-7 h-7 text-[9px]" style={{ background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }}>선택</div>
+                  <div className="absolute top-2 right-2 idn-seal w-7 h-7 text-[9px] z-10" style={{ background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }}>선택</div>
                 )}
               </div>
               <div className="px-3 py-2.5">
@@ -1992,7 +1995,9 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         {selectedTone && toneByKey(selectedTone) && (
           <div className="border overflow-hidden" style={{ borderColor: 'var(--gold)', background: 'var(--surface)' }}>
             <div className="flex items-stretch">
-              <img src={toneByKey(selectedTone).img} alt={toneByKey(selectedTone).label} className="w-24 h-24 object-cover flex-shrink-0" style={{ display: 'block' }} />
+              <div className="w-24 h-24 flex-shrink-0 relative" style={{ background: toneByKey(selectedTone).color || 'var(--line)' }}>
+                <img src={toneByKey(selectedTone).img} alt={toneByKey(selectedTone).label} className="w-full h-full object-cover absolute inset-0" style={{ display: 'block' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              </div>
               <div className="px-3 py-2 flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-bold px-1.5 py-0.5" style={{ background: 'var(--gold)', color: '#fff' }}>선택한 톤</span>
@@ -2448,7 +2453,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
             {[
               { key: 'grey', label: '모던 그레이' },
               { key: 'scandi', label: '스칸디 미니멀' },
-              { key: 'wood', label: '오크 (스칸디 공용)' },
+              { key: 'wood', label: '웜 우드' },
               { key: 'all', label: '어디나 어울림' },
             ].map((t) => (
               <button
@@ -2466,7 +2471,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </button>
             ))}
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. '웜 우드'는 웜우드·스칸디 둘 다 노출, '어디나'는 모든 톤에 노출돼요.</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. 웜 우드·스칸디는 서로의 톤에도 함께 노출되고, '어디나'는 모든 톤에 노출돼요.</p>
         </div>
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
@@ -2723,7 +2728,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           <div className="flex items-center gap-1.5">
                             <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
                             <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
-                              {({ grey: '모던그레이', wood: '오크(스칸디)', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
+                              {({ grey: '모던그레이', wood: '웜우드', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
                             </span>
                           </div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>

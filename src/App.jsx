@@ -201,6 +201,16 @@ function serviceFeeFor(_product) {
 const SITE_URL = 'https://dgagu.com';
 const KAKAO_CHAT_URL = 'https://pf.kakao.com/_zxjtXX/chat'; // 카카오톡 채널 1:1 문의(상담) 링크
 const REFERRAL_DISCOUNT = 5000; // 추천 부동산명 입력 시 즉시 차감되는 할인액
+// QR 전단지를 배포한 부동산 기본 목록 — 관리자에서 따로 설정 안 하면 이 목록으로 매칭해요.
+// 짧고 distinctive하게 적을수록 매칭이 관대해져요 (예: '전성한' → '전성한공인중개사'도 인식).
+const REFERRAL_AGENCIES = ['건대부동산', '전성한', '열린공인중개사', '건대123', '참조은', '집토스'];
+function isRegisteredAgency(input, list) {
+  const agencies = (Array.isArray(list) && list.length) ? list : REFERRAL_AGENCIES;
+  const norm = (s) => (s || '').replace(/\s/g, '');
+  const ni = norm(input);
+  if (!ni) return false;
+  return agencies.some((a) => { const na = norm(a); return na && ni.includes(na); });
+}
 // 카카오톡으로 복사해서 보낼 예약 확인 메시지 — 고객용
 // 예약에 저장할 상품 정보는 사진(images/detailImages)을 빼고 화면표시에 필요한 것만 남겨요.
 // 안 그러면 예약 1건마다 상품 사진(원본 base64)이 통째로 복제 저장돼서 테이블이 급격히 무거워져요.
@@ -1299,7 +1309,7 @@ function KakaoInquiryButton({ label = '카카오톡으로 문의하기', full = 
   );
 }
 
-function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, bankAccount, onSubmit, onRemoveItem, onChangeOption }) {
+function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings, serviceFeeTotal = 0, moveInDate, earlyBird, earlyBirdDays, earlyBirdDiscount = 0, regionDiscount = 0, regionLabel, initialAddress = '', roomHas, referralAgent, referralAgencies, bankAccount, onSubmit, onRemoveItem, onChangeOption }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState(initialAddress);
@@ -1333,7 +1343,7 @@ function ReservationModal({ open, onClose, cartEntries, subtotal, total, savings
     return s + (priceNoEarly - priceWithEarly) * e.qty;
   }, 0);
   const regionSavings = Math.max(0, savings - earlySavings);
-  const referralDiscount = referralSource.trim() ? REFERRAL_DISCOUNT : 0;
+  const referralDiscount = isRegisteredAgency(referralSource, referralAgencies) ? REFERRAL_DISCOUNT : 0;
   const finalTotal = Math.max(0, total - referralDiscount);
   const totalSavings = savings + referralDiscount;
 
@@ -1677,7 +1687,7 @@ function defaultProductForCategory(products, catId, toneKey = null) {
   return items.find((p) => p.name.includes('기본') && !p.name.includes('우드')) || items[0];
 }
 
-function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation, initialProductId = null, onNeedProductMedia }) {
+function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds, regionLabel, reservations, referralAgent, packageImages, bankAccount, onAddReservation, initialProductId = null, onNeedProductMedia, referralAgencies }) {
   const [step, setStep] = useState(initialProductId ? 'shop' : 'tone'); // 'tone' | 'room' | 'date' | 'shop' (주소는 예약 팝업에서 받음)
   const [selectedTone, setSelectedTone] = useState(null);
   const [roomHas, setRoomHas] = useState({ bedframe: true, desk: true, wardrobe: true });
@@ -2096,6 +2106,7 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
         initialAddress={fullAddress}
         roomHas={roomHas}
         referralAgent={referralAgent}
+        referralAgencies={referralAgencies}
         bankAccount={bankAccount}
         onSubmit={handleSubmitReservation}
         onRemoveItem={(pid) => updateCart(pid, 0)}
@@ -2791,7 +2802,8 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
   );
 }
 
-function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount }) {
+function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount, referralAgencies = [], setReferralAgencies }) {
+  const [agencyText, setAgencyText] = useState((referralAgencies || []).join('\n'));
   const [agentCode, setAgentCode] = useState('');
   const trimmedCode = agentCode.trim();
   const qrUrl = trimmedCode ? `${SITE_URL}/?agent=${encodeURIComponent(trimmedCode)}` : '';
@@ -3006,6 +3018,26 @@ function AdminSettings({ earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, set
         >
           + 구간 추가
         </button>
+      </div>
+
+      <div className="border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+        <h3 className="idn-display font-bold text-sm mb-1" style={{ color: 'var(--ink)' }}>QR 배포 부동산 목록</h3>
+        <p className="text-xs mb-3" style={{ color: 'var(--ink)', opacity: 0.55 }}>
+          QR 전단지를 준 부동산 이름을 한 줄에 하나씩 적어주세요. 손님이 예약할 때 이 이름을 포함해 적으면 5,000원 할인이 적용돼요.
+          짧고 핵심만 적을수록 잘 잡혀요 (예: '전성한' → '전성한공인중개사'도 인식). 비워두면 기본 목록으로 동작해요.
+        </p>
+        <textarea
+          value={agencyText}
+          onChange={(e) => { setAgencyText(e.target.value); setReferralAgencies(e.target.value.split('\n').map((s) => s.trim()).filter(Boolean)); }}
+          rows={5}
+          placeholder={'건대부동산\n전성한\n열린공인중개사'}
+          className="w-full border px-3 py-2 text-sm" style={{ borderColor: 'var(--line)' }}
+        />
+        {referralAgencies.length > 0 && (
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>
+            등록된 부동산 {referralAgencies.length}곳: {referralAgencies.join(' · ')}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -3496,7 +3528,7 @@ function AdminGate({ onUnlock }) {
   );
 }
 
-function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount, onUpdateStatus }) {
+function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarlyBirdDays, earlyBirdDiscount, setEarlyBirdDiscount, regionThresholds, setRegionThresholds, regionLabel, setRegionLabel, packageImages, setPackageImages, bankAccount, setBankAccount, referralAgencies, setReferralAgencies, onUpdateStatus }) {
   const [tab, setTab] = useState('products');
   const tabs = [
     { id: 'products', label: '상품관리', icon: LayoutGrid },
@@ -3526,7 +3558,7 @@ function AdminView({ products, setProducts, reservations, earlyBirdDays, setEarl
       {tab === 'products' && <AdminProducts products={products} setProducts={setProducts} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} />}
       {tab === 'orders' && <AdminOrders reservations={reservations} products={products} />}
       {tab === 'reservations' && <AdminReservations reservations={reservations} bankAccount={bankAccount} onUpdateStatus={onUpdateStatus} />}
-      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} />}
+      {tab === 'settings' && <AdminSettings earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} referralAgencies={referralAgencies} setReferralAgencies={setReferralAgencies} />}
     </div>
   );
 }
@@ -3554,6 +3586,7 @@ export default function App() {
     { count: 20, discount: 12 },
   ]);
   const [regionLabel, setRegionLabel] = useState('우리 동네');
+  const [referralAgencies, setReferralAgencies] = useState([]); // QR 배포 부동산 목록(관리자 편집)
   const [packageImages, setPackageImages] = useState({ starter: '', sleep: '', full: '' });
   const [bankAccount, setBankAccount] = useState({ bank: '', number: '', holder: '' });
   const [referralAgent] = useState(() => captureReferralAgent());
@@ -3579,6 +3612,12 @@ export default function App() {
         const baRes = await supabase.from('settings').select('bankAccount').eq('id', 1).single();
         if (!baRes.error && baRes.data?.bankAccount && !cancelled) setBankAccount((b) => ({ ...b, ...baRes.data.bankAccount }));
       } catch { /* bankAccount 컬럼 없음 — 무시 */ }
+
+      // QR 배포 부동산 목록도 별도 컬럼 — 없어도 안 깨지게 따로 불러와요
+      try {
+        const raRes = await supabase.from('settings').select('referralAgencies').eq('id', 1).single();
+        if (!raRes.error && Array.isArray(raRes.data?.referralAgencies) && !cancelled) setReferralAgencies(raRes.data.referralAgencies);
+      } catch { /* referralAgencies 컬럼 없음 — 무시 */ }
 
       // 주문조회 페이지는 예약 정보 + 썸네일용 상품(가벼운 컬럼만) 병렬 로드 — 상세/톤 이미지는 안 불러와서 가벼워요
       if (view === 'order') {
@@ -3650,6 +3689,12 @@ export default function App() {
     supabase.from('settings').update({ bankAccount }).eq('id', 1)
       .then(({ error }) => error && console.error("입금계좌 저장 실패 — settings 테이블에 'bankAccount' jsonb 컬럼이 필요해요", error));
   }, [bankAccount, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    supabase.from('settings').update({ referralAgencies }).eq('id', 1)
+      .then(({ error }) => error && console.error("부동산 목록 저장 실패 — settings 테이블에 'referralAgencies' jsonb 컬럼이 필요해요", error));
+  }, [referralAgencies, loaded]);
 
   // 상품 상세를 열 때 그 상품의 무거운 이미지(detailImages·toneImages)만 따로 불러와 병합.
   // 첫 로딩엔 이걸 빼서 가볍게, 필요할 때만 가져와요.
@@ -3753,11 +3798,11 @@ export default function App() {
 
       <div className="max-w-md mx-auto">
         {view === 'shop'
-          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} initialProductId={initialProductId} onNeedProductMedia={loadProductMedia} />
+          ? <ShopView products={products} earlyBirdDays={earlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} regionThresholds={regionThresholds} regionLabel={regionLabel} reservations={reservations} referralAgent={referralAgent} packageImages={packageImages} bankAccount={bankAccount} onAddReservation={addReservation} initialProductId={initialProductId} onNeedProductMedia={loadProductMedia} referralAgencies={referralAgencies} />
           : view === 'order'
             ? <OrderLookup orderId={orderId} reservations={reservations} loaded={loaded} bankAccount={bankAccount} products={products} />
             : adminUnlocked
-              ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} onUpdateStatus={updateReservationStatus} />
+              ? <AdminView products={products} setProducts={setProducts} reservations={reservations} earlyBirdDays={earlyBirdDays} setEarlyBirdDays={setEarlyBirdDays} earlyBirdDiscount={earlyBirdDiscount} setEarlyBirdDiscount={setEarlyBirdDiscount} regionThresholds={regionThresholds} setRegionThresholds={setRegionThresholds} regionLabel={regionLabel} setRegionLabel={setRegionLabel} packageImages={packageImages} setPackageImages={setPackageImages} bankAccount={bankAccount} setBankAccount={setBankAccount} referralAgencies={referralAgencies} setReferralAgencies={setReferralAgencies} onUpdateStatus={updateReservationStatus} />
               : <AdminGate onUnlock={() => setAdminUnlocked(true)} />
         }
       </div>

@@ -1689,7 +1689,11 @@ function ShopView({ products, earlyBirdDays, earlyBirdDiscount, regionThresholds
   const detailScrollRef = useRef(0); // 상세 들어가기 전 쇼핑 화면 스크롤 위치 — 뒤로가면 그대로 복원
   const openDetail = (pid) => { detailScrollRef.current = window.scrollY; setDetailId(pid); };
   const backFromDetail = () => { setDetailId(null); requestAnimationFrame(() => window.scrollTo(0, detailScrollRef.current || 0)); };
-  useEffect(() => { if (detailId && onNeedProductMedia) onNeedProductMedia(detailId); }, [detailId]);
+  useEffect(() => {
+    if (!detailId || !onNeedProductMedia) return;
+    const p = products.find((x) => x.id === detailId);
+    if (p && !p._mediaLoaded) onNeedProductMedia(detailId);
+  }, [detailId, products]);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingReserve, setPendingReserve] = useState(false); // 예약하기로 날짜 단계에 왔는지 — 날짜 고르면 바로 정보 입력 팝업으로
   const reservationDoneRef = useRef(false); // 예약이 성공했는지 — 팝업 닫을 때 장바구니를 비울지 판단

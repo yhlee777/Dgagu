@@ -110,15 +110,15 @@ const TONES = [
 function toneByKey(key) {
   return TONES.find((t) => t.key === key) || null;
 }
-// 상품 톤이 선택한 톤에 맞는지 — 'all'은 항상, 'wood'(오크)는 스칸디 공용
+// 상품 톤이 선택한 톤에 맞는지.
+// tone 태그: grey/scandi/wood = 각 톤 전용, woodscandi = 웜우드+스칸디 공용, all = 어디나
 function productMatchesTone(product, toneKey) {
   if (!toneKey) return true;
   const t = product.tone || 'grey';
   if (t === 'all') return true;
   if (t === toneKey) return true;
-  // 오크·스칸디 우드 가구는 서로의 톤에 함께 노출 (따뜻한 우드/밝은 우드 겹침)
-  if (t === 'wood' && toneKey === 'scandi') return true;
-  if (t === 'scandi' && toneKey === 'wood') return true;
+  // '웜우드+스칸디 공용' 상품은 두 톤 모두에 노출
+  if (t === 'woodscandi' && (toneKey === 'wood' || toneKey === 'scandi')) return true;
   return false;
 }
 // 톤별 색상 사진 — 한 상품이 색상별로 다를 때, 고른 톤에 맞는 색상 사진을 돌려줘요.
@@ -2452,8 +2452,9 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
           <div className="grid grid-cols-2 gap-1.5">
             {[
               { key: 'grey', label: '모던 그레이' },
-              { key: 'scandi', label: '스칸디 미니멀' },
+              { key: 'scandi', label: '스칸디' },
               { key: 'wood', label: '웜 우드' },
+              { key: 'woodscandi', label: '웜우드+스칸디 공용' },
               { key: 'all', label: '어디나 어울림' },
             ].map((t) => (
               <button
@@ -2471,7 +2472,7 @@ function ProductForm({ initial, earlyBirdDays, earlyBirdDiscount, onSave, onCanc
               </button>
             ))}
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 이 톤을 고르면 이 상품이 추천에 떠요. 웜 우드·스칸디는 서로의 톤에도 함께 노출되고, '어디나'는 모든 톤에 노출돼요.</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.5 }}>손님이 시작 화면에서 고른 톤에 이 상품이 떠요. '스칸디'·'웜 우드'는 각 톤에만, '웜우드+스칸디 공용'은 두 톤 모두에, '어디나'는 모든 톤에 노출돼요.</p>
         </div>
         <div>
           <label className={labelCls} style={{ color: 'var(--ink)' }}>평점</label>
@@ -2728,7 +2729,7 @@ function AdminProducts({ products, setProducts, earlyBirdDays, earlyBirdDiscount
                           <div className="flex items-center gap-1.5">
                             <div className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{p.name}</div>
                             <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 border" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>
-                              {({ grey: '모던그레이', wood: '웜우드', scandi: '스칸디', all: '공용' })[p.tone || 'grey']}
+                              {({ grey: '모던그레이', wood: '웜우드', scandi: '스칸디', woodscandi: '웜우드+스칸디', all: '공용' })[p.tone || 'grey']}
                             </span>
                           </div>
                           <div className="idn-mono text-[11px] mt-0.5 space-y-0.5" style={{ color: 'var(--ink)' }}>

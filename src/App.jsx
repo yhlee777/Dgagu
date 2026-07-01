@@ -3594,6 +3594,13 @@ export default function App() {
   ]);
   const [regionLabel, setRegionLabel] = useState('우리 동네');
   const [referralAgencies, setReferralAgencies] = useState([]); // QR 배포 부동산 목록(관리자 편집)
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const [packageImages, setPackageImages] = useState({ starter: '', sleep: '', full: '' });
   const [bankAccount, setBankAccount] = useState({ bank: '', number: '', holder: '' });
   const [referralAgent] = useState(() => captureReferralAgent());
@@ -3793,11 +3800,32 @@ export default function App() {
         .idn-root button { border-radius: 13px; }
         .idn-root input, .idn-root textarea, .idn-root select { border-radius: 12px; }
       `}</style>
-      <div className="sticky top-0 z-10" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--line)', paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="px-4 py-3 flex items-center justify-between">
+      <div
+        className="sticky top-0 z-10"
+        style={{
+          background: scrolled ? 'rgba(255,255,255,0.72)' : 'var(--surface)',
+          WebkitBackdropFilter: scrolled ? 'blur(14px)' : 'none',
+          backdropFilter: scrolled ? 'blur(14px)' : 'none',
+          borderBottom: scrolled ? '1px solid transparent' : '1px solid var(--line)',
+          boxShadow: scrolled ? '0 4px 16px rgba(69,63,74,0.07)' : 'none',
+          paddingTop: 'env(safe-area-inset-top)',
+          transition: 'background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+        }}
+      >
+        <div className="px-4 flex items-center justify-between" style={{ paddingTop: scrolled ? '8px' : '12px', paddingBottom: scrolled ? '8px' : '12px', transition: 'padding 0.25s ease' }}>
           <div>
-            <img src={LOGO_MARK} alt="D가구" style={{ height: '30px', display: 'block' }} />
-            <div className="idn-mono text-[10px] mt-1.5" style={{ color: 'var(--ink)', opacity: 0.45 }}>
+            <img src={LOGO_MARK} alt="D가구" style={{ height: scrolled ? '22px' : '30px', display: 'block', transition: 'height 0.25s ease' }} />
+            <div
+              className="idn-mono text-[10px]"
+              style={{
+                color: 'var(--ink)',
+                opacity: scrolled ? 0 : 0.45,
+                maxHeight: scrolled ? '0px' : '18px',
+                marginTop: scrolled ? '0px' : '6px',
+                overflow: 'hidden',
+                transition: 'opacity 0.2s ease, max-height 0.25s ease, margin-top 0.25s ease',
+              }}
+            >
               {view === 'admin' ? '관리자 · D가구' : '합리적인 가구 쇼핑'}
             </div>
           </div>

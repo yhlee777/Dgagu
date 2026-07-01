@@ -3390,9 +3390,10 @@ function OrderLookup({ orderId, reservations, loaded, bankAccount, products = []
         </div>
         <div className="px-3 py-2">
           {(r.items || []).map((it) => {
-            const live = products.find((p) => String(p.id) === String(it.product?.id));
-            const thumb = live ? imagesForTone(live, it.tone)[0] : null;
-            const pid = it.product?.id;
+            const live = products.find((p) => String(p.id) === String(it.product?.id))
+              || products.find((p) => p.name && p.name === it.product?.name);
+            const thumb = live ? imagesForTone(live, it.tone).find(Boolean) : null;
+            const pid = live?.id || it.product?.id;
             return (
               <button
                 key={pid}
@@ -3579,11 +3580,15 @@ export default function App() {
         if (!baRes.error && baRes.data?.bankAccount && !cancelled) setBankAccount((b) => ({ ...b, ...baRes.data.bankAccount }));
       } catch { /* bankAccount 컬럼 없음 — 무시 */ }
 
-      // 주문조회 페이지는 reservations 하나만 있으면 충분해서, products/settings를 기다리지 않고 바로 떠요
+      // 주문조회 페이지는 예약 정보 + 썸네일용 상품(가벼운 컬럼만) 병렬 로드 — 상세/톤 이미지는 안 불러와서 가벼워요
       if (view === 'order') {
-        const { data, error } = await supabase.from('reservations').select('*').order('created_at');
-        if (error) console.error('reservation load failed', error);
-        else if (data && !cancelled) setReservations(data);
+        const [resR, prodR] = await Promise.all([
+          supabase.from('reservations').select('*').order('created_at'),
+          supabase.from('products').select('id,name,category,images,tone').order('id'),
+        ]);
+        if (resR.error) console.error('reservation load failed', resR.error);
+        else if (resR.data && !cancelled) setReservations(resR.data);
+        if (!prodR.error && prodR.data?.length && !cancelled) setProducts(prodR.data);
         if (!cancelled) setLoaded(true);
         return;
       }

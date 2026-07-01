@@ -3705,7 +3705,13 @@ export default function App() {
     try {
       const d = await supabase.from('products').select('id, detailImages').eq('id', productId).single();
       if (!d.error && d.data) {
-        setProducts((ps) => ps.map((p) => (p.id === d.data.id ? { ...p, detailImages: d.data.detailImages || [], _mediaLoaded: true } : p)));
+        setProducts((ps) => ps.map((p) => {
+          if (p.id !== d.data.id) return p;
+          const fetched = d.data.detailImages;
+          // 불러온 값이 비어 있으면 기존 것 유지 (덮어써서 사라지는 것 방지)
+          const next = (Array.isArray(fetched) && fetched.length) ? fetched : (p.detailImages || []);
+          return { ...p, detailImages: next, _mediaLoaded: true };
+        }));
       }
     } catch { /* 무시 */ }
     // toneImages — 있을 수도/없을 수도 (별도 컬럼)
@@ -3770,11 +3776,16 @@ export default function App() {
     <div
       className="idn-root min-h-full"
       style={{
-        '--bg': '#EBEEF3', '--surface': '#FFFFFF', '--ink': '#1E2A44',
-        '--line': '#D6DCE5', '--stamp': '#D6401F', '--gold': '#AD8A35', '--admin': '#1E2A44',
+        '--bg': '#F7F3EE', '--surface': '#FFFFFF', '--ink': '#453F4A',
+        '--line': '#ECE6DF', '--stamp': '#D98C77', '--gold': '#C9A97E', '--admin': '#5C5566',
         background: 'var(--bg)', color: 'var(--ink)',
       }}
     >
+      <style>{`
+        .idn-root [class~="border"], .idn-root [class~="border-2"] { border-radius: 16px; }
+        .idn-root button { border-radius: 13px; }
+        .idn-root input, .idn-root textarea, .idn-root select { border-radius: 12px; }
+      `}</style>
       <div className="sticky top-0 z-10" style={{ background: view === 'admin' ? 'var(--admin)' : 'var(--ink)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="px-4 py-3 flex items-center justify-between text-white">
           <div>

@@ -906,11 +906,74 @@ function Section({ title, children }) {
 /* product detail page — full page, not a modal                           */
 /* ---------------------------------------------------------------------- */
 
+// 전체화면 이미지 뷰어 — 탭하면 확대(2.5x), 두 손가락 핀치 확대, 드래그 이동, 좌우로 사진 넘김
+function ImageLightbox({ images, index, setIndex, onClose }) {
+  const imgs = (images || []).filter(Boolean);
+  const [scale, setScale] = useState(1);
+  const [tx, setTx] = useState(0);
+  const [ty, setTy] = useState(0);
+  const [gesturing, setGesturing] = useState(false);
+  const st = useRef({ pointers: new Map(), startDist: 0, startScale: 1, startTx: 0, startTy: 0, startX: 0, startY: 0, moved: false });
+  const reset = () => { setScale(1); setTx(0); setTy(0); };
+  useEffect(() => { reset(); }, [index]);
+  const clamp = (s) => Math.max(1, Math.min(4, s));
+
+  const down = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const s = st.current; s.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); s.moved = false; setGesturing(true);
+    if (s.pointers.size === 2) {
+      const p = [...s.pointers.values()]; s.startDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); s.startScale = scale;
+    } else { s.startX = e.clientX; s.startY = e.clientY; s.startTx = tx; s.startTy = ty; }
+  };
+  const move = (e) => {
+    const s = st.current; if (!s.pointers.has(e.pointerId)) return;
+    s.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (s.pointers.size === 2) {
+      const p = [...s.pointers.values()]; const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (s.startDist > 0) setScale(clamp(s.startScale * (d / s.startDist))); s.moved = true;
+    } else {
+      const dx = e.clientX - s.startX, dy = e.clientY - s.startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) s.moved = true;
+      if (scale > 1) { setTx(s.startTx + dx); setTy(s.startTy + dy); }
+    }
+  };
+  const up = (e) => {
+    const s = st.current; const wasMulti = s.pointers.size >= 2; s.pointers.delete(e.pointerId);
+    if (s.pointers.size === 0) {
+      setGesturing(false);
+      if (!s.moved && !wasMulti) { if (scale > 1) reset(); else setScale(2.5); }
+      s.startDist = 0;
+    }
+  };
+  const arrow = { position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.16)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(18,16,20,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none', overflow: 'hidden' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <button onClick={onClose} aria-label="닫기" style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 12px)', right: 16, zIndex: 3, width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.16)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <X size={20} />
+      </button>
+      <img src={imgs[index]} alt="" draggable={false}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', transform: `translate(${tx}px,${ty}px) scale(${scale})`, transition: gesturing ? 'none' : 'transform 0.2s ease', touchAction: 'none', userSelect: 'none', cursor: scale > 1 ? 'grab' : 'zoom-in' }} />
+      {imgs.length > 1 && (
+        <>
+          <button aria-label="이전" onClick={() => setIndex((index - 1 + imgs.length) % imgs.length)} style={{ ...arrow, left: 10 }}><ChevronLeft size={22} /></button>
+          <button aria-label="다음" onClick={() => setIndex((index + 1) % imgs.length)} style={{ ...arrow, right: 10 }}><ChevronRight size={22} /></button>
+          <div style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 18px)', left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 12, letterSpacing: '0.05em' }}>{index + 1} / {imgs.length}</div>
+        </>
+      )}
+      <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 16px)', left: 16, color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>탭하면 확대 · 두 손가락으로 크게</div>
+    </div>
+  );
+}
+
 function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, regionDiscount = 0, qtyInCart, cart, onUpdateCart, onBack, onSelectProduct, selectedTone = null, initialOptIdx = 0 }) {
   const galleryImages = imagesForTone(product, selectedTone);
   const filledImageIdx = galleryImages.reduce((arr, img, i) => { if (img) arr.push(i); return arr; }, []);
   const [qty, setQty] = useState(Math.max(qtyInCart || 1, 1));
   const [activeImg, setActiveImg] = useState(filledImageIdx[0] ?? 0);
+  const [lightboxPos, setLightboxPos] = useState(null); // 전체화면 뷰어 위치(사진 있는 것들 중 index)
   const optionChoices = product.option?.choices || [];
   const hasOption = optionChoices.length > 0;
   const [optIdx, setOptIdx] = useState(Math.min(initialOptIdx || 0, Math.max(optionChoices.length - 1, 0)));
@@ -963,7 +1026,12 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       {/* gallery */}
       <div className="relative">
         {galleryImages?.[safeActive] ? (
-          <img src={galleryImages[safeActive]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+          <button type="button" onClick={() => setLightboxPos(filledImageIdx.indexOf(safeActive))} className="block w-full" style={{ cursor: 'zoom-in' }} aria-label="사진 크게 보기">
+            <img src={galleryImages[safeActive]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+            <span className="absolute bottom-3 right-3 flex items-center gap-1 idn-mono text-[10px] font-bold px-2 py-1" style={{ background: 'rgba(255,255,255,0.85)', color: 'var(--ink)', borderRadius: '999px' }}>
+              <Search size={11} /> 크게 보기
+            </span>
+          </button>
         ) : (
           <div className="idn-hatch w-full h-64 flex flex-col items-center justify-center gap-1 border-b text-center px-10" style={{ borderColor: 'var(--line)' }}>
             <Icon size={32} style={{ color: 'var(--ink)', opacity: 0.3 }} />
@@ -978,6 +1046,15 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
           {catLabel(product.category)}
         </span>
       </div>
+
+      {lightboxPos !== null && (
+        <ImageLightbox
+          images={filledImageIdx.map((i) => galleryImages[i])}
+          index={lightboxPos}
+          setIndex={(p) => { setLightboxPos(p); setActiveImg(filledImageIdx[p]); }}
+          onClose={() => setLightboxPos(null)}
+        />
+      )}
 
       {/* thumbnails — 실제로 사진이 있는 슬롯만 보여줘요 */}
       {filledImageIdx.length > 1 && (
@@ -995,10 +1072,14 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
         </div>
       )}
 
-      <div className="px-4 pt-2.5">
-        <p className="text-[11px] flex items-center gap-1 font-bold" style={{ color: 'var(--ink)' }}>
-          <Check size={12} style={{ color: 'var(--gold)' }} /> 실제 제품 색상은 위 사진과 동일해요. 보이는 그대로 도착해요.
-        </p>
+      <div className="px-4 pt-3">
+        <div className="flex items-start gap-2 px-3 py-2.5 border" style={{ borderColor: 'var(--gold)', background: 'rgba(201,169,126,0.12)' }}>
+          <Check size={16} style={{ color: 'var(--gold)', marginTop: '1px', flexShrink: 0 }} />
+          <div>
+            <p className="text-[13px] font-bold" style={{ color: 'var(--ink)' }}>보이는 색 그대로, 실물 색상이에요</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>위 사진의 색과 실제 도착하는 제품 색이 같아요. 안심하고 고르세요.</p>
+          </div>
+        </div>
       </div>
 
       {/* title */}
@@ -1063,18 +1144,26 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
 
       <div className="px-4">
         {longDesc && (
-          <Section title="제품 소개">
+          <Section title="제품 이해">
             <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.8, whiteSpace: 'pre-line' }}>{longDesc}</p>
           </Section>
         )}
       </div>
 
       {product.detailImages?.length > 0 && (
-        <div className="mt-1 space-y-0">
-          {product.detailImages.map((img, i) => (
-            <img key={i} src={img} alt={`${product.name} 상세 ${i + 1}`} loading="lazy" decoding="async" className="w-full block" />
-          ))}
-        </div>
+        <>
+          <div className="px-4 pb-2">
+            {!longDesc && <div className="idn-display text-base font-bold mb-1" style={{ color: 'var(--ink)' }}>제품 이해</div>}
+            <p className="text-[12px] flex items-center gap-1.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>
+              <Search size={13} style={{ color: 'var(--gold)' }} /> 아래 사진으로 실제 크기·기능·디테일을 확인하세요.
+            </p>
+          </div>
+          <div className="space-y-0">
+            {product.detailImages.map((img, i) => (
+              <img key={i} src={img} alt={`${product.name} 상세 ${i + 1}`} loading="lazy" decoding="async" className="w-full block" />
+            ))}
+          </div>
+        </>
       )}
 
       <div className="px-4">

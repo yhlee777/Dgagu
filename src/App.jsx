@@ -1028,6 +1028,9 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
         {galleryImages?.[safeActive] ? (
           <button type="button" onClick={() => setLightboxPos(filledImageIdx.indexOf(safeActive))} className="block w-full" style={{ cursor: 'zoom-in' }} aria-label="사진 크게 보기">
             <img src={galleryImages[safeActive]} alt={product.name} className="w-full h-64 object-cover border-b" style={{ borderColor: 'var(--line)' }} />
+            <span className="absolute top-3 left-3 flex items-center gap-1 idn-mono text-[10px] font-bold px-2 py-1" style={{ background: 'var(--ink)', color: '#fff', borderRadius: '999px' }}>
+              <ShieldCheck size={11} /> 받으실 실제 상품
+            </span>
             <span className="absolute bottom-3 right-3 flex items-center gap-1 idn-mono text-[10px] font-bold px-2 py-1" style={{ background: 'rgba(255,255,255,0.85)', color: 'var(--ink)', borderRadius: '999px' }}>
               <Search size={11} /> 크게 보기
             </span>
@@ -1073,11 +1076,11 @@ function ProductPage({ product, allProducts, earlyBird, earlyBirdDiscount = 0, r
       )}
 
       <div className="px-4 pt-3">
-        <div className="flex items-start gap-2 px-3 py-2.5 border" style={{ borderColor: 'var(--gold)', background: 'rgba(201,169,126,0.12)' }}>
-          <Check size={16} style={{ color: 'var(--gold)', marginTop: '1px', flexShrink: 0 }} />
+        <div className="flex items-start gap-2 px-3 py-3 border-2" style={{ borderColor: 'var(--gold)', background: 'rgba(201,169,126,0.14)' }}>
+          <ShieldCheck size={20} style={{ color: 'var(--gold)', marginTop: '1px', flexShrink: 0 }} />
           <div>
-            <p className="text-[13px] font-bold" style={{ color: 'var(--ink)' }}>보이는 색 그대로, 실물 색상이에요</p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink)', opacity: 0.6 }}>위 사진의 색과 실제 도착하는 제품 색이 같아요. 안심하고 고르세요.</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>위 사진이 실제로 받으실 바로 그 상품이에요</p>
+            <p className="text-[12px] mt-1 leading-relaxed" style={{ color: 'var(--ink)', opacity: 0.7 }}>색상·디자인 모두 사진 그대로 도착해요. 연출 사진이나 다른 색이 오는 일은 없어요.</p>
           </div>
         </div>
       </div>
